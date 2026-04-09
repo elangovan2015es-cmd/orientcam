@@ -1,12 +1,12 @@
 /*
   OrientCam — Service Worker
-  Version : 1.0
+  Version : 1.1
   Date    : 09-Apr-2026
-  Cache   : orientcam-v1-cache
-  Note    : Bump CACHE_NAME on every new version to force refresh
+  Cache   : orientcam-v1.1-cache
+  Changes : Bumped from v1-cache to force fresh download on all devices
 */
 
-const CACHE_NAME = 'orientcam-v1-cache';
+const CACHE_NAME = 'orientcam-v1.1-cache';
 const ASSETS = [
   './index.html',
   './manifest.json'

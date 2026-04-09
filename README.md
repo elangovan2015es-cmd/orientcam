@@ -1,62 +1,67 @@
 # OrientCam — iPhone Edition
 
-| Item        | Detail                          |
-|-------------|---------------------------------|
-| App name    | OrientCam                       |
-| Version     | 1.0                             |
-| Date        | 09-Apr-2026                     |
-| Platform    | iPhone — Safari PWA             |
-| Developer   | Elango / EIL                    |
-| Hosted at   | elangovan2015es-cmd.github.io   |
+| Item     | Detail                        |
+|----------|-------------------------------|
+| Version  | 1.1                           |
+| Date     | 09-Apr-2026                   |
+| Platform | iPhone — Safari PWA           |
+| Author   | Elango / EIL                  |
 
 ---
 
 ## File Version Reference
 
-| File          | Version | Cache / Key            | Notes                        |
-|---------------|---------|------------------------|------------------------------|
-| index.html    | v1.0    | —                      | Main app file                |
-| manifest.json | v1.0    | —                      | PWA install config           |
-| sw.js         | v1.0    | orientcam-v1-cache     | Bump cache name on update    |
-
-> When releasing v1.1, v2.0 etc:
-> - Update version number in all 4 files
-> - Change CACHE_NAME in sw.js to `orientcam-v1.1-cache` (old cache auto-cleared)
+| File          | Version | Cache Name            |
+|---------------|---------|-----------------------|
+| index.html    | v1.1    | —                     |
+| manifest.json | v1.1    | —                     |
+| sw.js         | v1.1    | orientcam-v1.1-cache  |
+| README.md     | v1.1    | —                     |
 
 ---
 
-## Features (v1.0)
+## What's New in v1.1
 
-- Photo mode: live rotated preview → saves rotated JPG
-- Video mode: opens iPhone native camera → brings video back → save to Files
-- Rotation presets: 0° / 90° / -90° / 180°
-- Custom rotation slider: -180° to +180°
-- Rule-of-thirds grid overlay
-- Front / back camera flip
-- Mirror mode
-- Offline support via service worker
+### 1. Video Post-Processing Rotation
+- After recording via iPhone native camera, video is brought back into app
+- App re-draws every frame rotated to the selected angle
+- Progress bar shows rotation progress
+- Saves as rotated .webm file
+
+### 2. Voice Commands
+Tap the 🎙 mic button to activate. Say:
+
+| Say          | Action                    |
+|--------------|---------------------------|
+| "Photo"      | Switch to photo mode      |
+| "Video"      | Switch to video mode      |
+| "Capture"    | Take photo / start record |
+| "Click"      | Take photo                |
+| "Record"     | Start video recording     |
+| "Stop"       | Stop recording            |
+| "Landscape"  | Rotation 90°              |
+| "Normal"     | Rotation 0°               |
+| "Flip"       | Rotation 180°             |
+| "Reverse"    | Rotation -90°             |
+| "Front"      | Front camera              |
+| "Back"       | Back camera               |
+| "Grid"       | Toggle grid               |
+| "Mirror"     | Toggle mirror             |
+
+Tap ❓ to see full voice command list inside the app.
 
 ---
 
-## Deploy Steps
+## Deploy (Overwrite v1.0)
 
-1. Create GitHub repo named `orientcam` under `elangovan2015es-cmd`
-2. Upload: `index.html`, `manifest.json`, `sw.js`, `README.md`
-3. Settings → Pages → main branch → Save
-4. Live at: `https://elangovan2015es-cmd.github.io/orientcam/`
-
-## Add to iPhone Home Screen
-
-1. Open link in **Safari**
-2. Tap **Share** button (bottom centre)
-3. Tap **Add to Home Screen**
-4. Tap **Add**
-5. Opens fullscreen — no browser bar
+Upload all 4 files to `elangovan2015es-cmd/orientcam` repo — overwrite existing files.
+The new cache name in sw.js (`orientcam-v1.1-cache`) forces all iPhones to download fresh.
 
 ---
 
 ## Version History
 
-| Version | Date        | Changes          |
-|---------|-------------|------------------|
-| 1.0     | 09-Apr-2026 | Initial release  |
+| Version | Date        | Changes                                        |
+|---------|-------------|------------------------------------------------|
+| 1.0     | 09-Apr-2026 | Initial release                                |
+| 1.1     | 09-Apr-2026 | Video rotation post-processing + Voice commands|
