@@ -3,15 +3,15 @@
 <head>
   <!--
     OrientCam — iPhone Edition
-    Version : 1.2
+    Version : 1.3
     Date    : 09-Apr-2026
     Author  : Elango / EIL
-    Changes : v1.2 — Dynamic translucent voice command sheet
-              Commands disappear from sheet as they are used
+    Changes : v1.3 — Near-transparent voice sheet, compact chips,
+              instant voice via interimResults + en-US engine
   -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>OrientCam v1.2</title>
+  <title>OrientCam v1.3</title>
   <meta name="theme-color" content="#0a0a0a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -104,134 +104,115 @@
     }
     #grid-canvas.show { opacity: 1; }
 
+    /* ORIENT BADGE — top center */
     #orient-badge {
       position: absolute; top: 10px;
       left: 50%; transform: translateX(-50%);
-      background: rgba(255,165,0,0.92);
+      background: rgba(255,165,0,0.85);
       color: #000; font-size: 11px; font-weight: 600;
       padding: 4px 14px; border-radius: 20px;
       white-space: nowrap; z-index: 5;
     }
 
-    /* HEARD BADGE */
+    /* HEARD BADGE — below orient badge */
     #heard-badge {
-      position: absolute; top: 44px;
+      position: absolute; top: 40px;
       left: 50%; transform: translateX(-50%);
-      background: rgba(48,209,88,0.92);
+      background: rgba(48,209,88,0.9);
       color: #000; font-size: 12px; font-weight: 700;
-      padding: 5px 16px; border-radius: 20px;
+      padding: 4px 16px; border-radius: 20px;
       white-space: nowrap; z-index: 6;
       opacity: 0; pointer-events: none;
-      transition: opacity 0.2s;
+      transition: opacity 0.15s;
     }
     #heard-badge.show { opacity: 1; }
 
-    /* ═══════════════════════════════════════
-       VOICE COMMAND SHEET — KEY FEATURE v1.2
-       Translucent sheet from bottom
-       Commands fade out as they are used
-    ════════════════════════════════════════ */
+    /* ═══════════════════════════════════════════════
+       VOICE SHEET v1.3
+       - Near transparent: camera fully visible
+       - Single slim row of compact chips
+       - Slides in from bottom, hugs the edge
+    ════════════════════════════════════════════════ */
     #voice-sheet {
       position: absolute;
       bottom: 0; left: 0; right: 0;
-      background: rgba(10, 10, 10, 0.82);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border-top: 0.5px solid rgba(255,255,255,0.15);
-      border-radius: 20px 20px 0 0;
-      padding: 12px 16px 20px;
+      /* Very transparent — only 15% black so camera shows through */
+      background: rgba(0, 0, 0, 0.15);
+      backdrop-filter: blur(2px);
+      -webkit-backdrop-filter: blur(2px);
+      border-top: 0.5px solid rgba(255,255,255,0.12);
+      padding: 8px 12px 12px;
       z-index: 8;
       transform: translateY(100%);
-      transition: transform 0.38s cubic-bezier(0.4,0,0.2,1);
-      max-height: 70%;
-      overflow-y: auto;
+      transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
     }
-    #voice-sheet.open {
-      transform: translateY(0);
-    }
+    #voice-sheet.open { transform: translateY(0); }
 
-    /* Sheet drag handle */
-    .sheet-handle {
-      width: 36px; height: 4px;
-      background: rgba(255,255,255,0.25);
-      border-radius: 2px;
-      margin: 0 auto 12px;
-    }
-
-    /* Mic status row */
+    /* Mic row — tiny */
     .sheet-mic-row {
       display: flex; align-items: center;
       justify-content: space-between;
-      margin-bottom: 14px;
+      margin-bottom: 8px;
     }
-    .mic-status {
-      display: flex; align-items: center; gap: 8px;
+    .mic-live {
+      display: flex; align-items: center; gap: 6px;
     }
     .mic-dot {
-      width: 8px; height: 8px; border-radius: 50%;
+      width: 6px; height: 6px; border-radius: 50%;
       background: var(--green);
-      animation: micpulse 1s ease-in-out infinite;
+      animation: mpulse 0.8s ease-in-out infinite;
     }
-    @keyframes micpulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }
-    .mic-text {
-      font-size: 12px; font-weight: 600; color: var(--green);
-    }
-    .sheet-close {
-      background: rgba(255,255,255,0.1);
-      border: none; color: var(--muted);
-      font-size: 12px; font-weight: 500;
-      padding: 5px 12px; border-radius: 12px;
-      cursor: pointer;
-    }
+    @keyframes mpulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    .mic-text { font-size: 11px; font-weight: 600; color: var(--green); }
 
-    /* Command groups */
-    .cmd-section {
-      margin-bottom: 12px;
-    }
-    .cmd-section-title {
-      font-size: 9px; color: rgba(255,255,255,0.3);
-      text-transform: uppercase; letter-spacing: 1px;
-      margin-bottom: 7px;
-    }
-    .cmd-chips {
-      display: flex; flex-wrap: wrap; gap: 7px;
-    }
-
-    /* Individual command chip */
-    .cmd-chip {
-      display: flex; align-items: center; gap: 6px;
+    .sheet-stop {
       background: rgba(255,255,255,0.08);
       border: 0.5px solid rgba(255,255,255,0.15);
-      border-radius: 20px;
-      padding: 6px 12px;
-      cursor: default;
-      transition: all 0.35s cubic-bezier(0.4,0,0.2,1);
+      color: rgba(255,255,255,0.6);
+      font-size: 11px; font-weight: 500;
+      padding: 4px 10px; border-radius: 10px; cursor: pointer;
+    }
+
+    /* Single row of chips — compact, horizontal scroll if needed */
+    .chip-row {
+      display: flex; gap: 6px;
+      overflow-x: auto; padding-bottom: 2px;
+      scrollbar-width: none;
+    }
+    .chip-row::-webkit-scrollbar { display: none; }
+
+    /* Each chip — small and compact */
+    .cmd-chip {
+      flex-shrink: 0;
+      background: rgba(255,255,255,0.10);
+      border: 0.5px solid rgba(255,255,255,0.20);
+      border-radius: 16px;
+      padding: 5px 11px;
+      display: flex; align-items: center; gap: 4px;
+      transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
       overflow: hidden;
-      max-width: 200px;
+      max-width: 160px;
+      cursor: default;
     }
     .chip-word {
-      font-size: 13px; font-weight: 600; color: #fff;
-      white-space: nowrap;
-    }
-    .chip-desc {
-      font-size: 11px; color: rgba(255,255,255,0.4);
+      font-size: 12px; font-weight: 600;
+      color: rgba(255,255,255,0.9);
       white-space: nowrap;
     }
 
-    /* Active flash when command is heard */
+    /* Flash green when heard */
     .cmd-chip.heard {
-      background: rgba(48,209,88,0.25);
-      border-color: rgba(48,209,88,0.6);
+      background: rgba(48,209,88,0.3);
+      border-color: rgba(48,209,88,0.7);
     }
     .cmd-chip.heard .chip-word { color: var(--green); }
 
-    /* Used — fades and collapses away */
+    /* Collapse away after use */
     .cmd-chip.used {
       opacity: 0;
       max-width: 0;
-      padding: 6px 0;
+      padding-left: 0; padding-right: 0;
       border-width: 0;
-      margin: 0;
       pointer-events: none;
     }
 
@@ -247,7 +228,7 @@
     #result-img.show { display: block; }
     #result-video { max-width: 100%; max-height: 72%; display: none; border-radius: 6px; }
     #result-video.show { display: block; }
-    #result-label { color: var(--muted); font-size: 11px; margin-top: 8px; text-align: center; }
+    #result-label { color: var(--muted); font-size: 11px; margin-top: 8px; }
     #result-actions {
       position: absolute; bottom: 0; left: 0; right: 0;
       padding: 16px; display: flex; gap: 10px;
@@ -279,7 +260,7 @@
     .proc-title { color: var(--text); font-size: 15px; font-weight: 600; }
     .proc-sub { color: var(--muted); font-size: 12px; text-align: center; max-width: 240px; line-height: 1.5; }
     #proc-progress { width: 200px; height: 4px; background: var(--surface2); border-radius: 2px; overflow: hidden; }
-    #proc-bar { height: 100%; background: var(--orange); border-radius: 2px; width: 0%; transition: width 0.3s ease; }
+    #proc-bar { height: 100%; background: var(--orange); border-radius: 2px; width: 0%; transition: width 0.3s; }
 
     /* ROTATION */
     #rot-section {
@@ -305,9 +286,8 @@
       cursor: pointer; -webkit-appearance: none; accent-color: var(--orange);
     }
     input[type=range]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 22px; height: 22px; border-radius: 50%;
-      background: var(--orange); cursor: pointer;
+      -webkit-appearance: none; width: 22px; height: 22px;
+      border-radius: 50%; background: var(--orange); cursor: pointer;
       box-shadow: 0 0 0 3px rgba(255,165,0,0.2);
     }
 
@@ -332,10 +312,10 @@
     .icon-btn.voice-on {
       border-color: var(--green);
       background: rgba(48,209,88,0.15);
-      animation: voicering 1.5s ease-in-out infinite;
+      animation: vring 1.5s ease-in-out infinite;
     }
-    @keyframes voicering {
-      0%,100% { box-shadow: 0 0 0 0 rgba(48,209,88,0.4); }
+    @keyframes vring {
+      0%,100% { box-shadow: 0 0 0 0 rgba(48,209,88,0.5); }
       50%      { box-shadow: 0 0 0 8px rgba(48,209,88,0); }
     }
     #shutter-btn {
@@ -347,7 +327,7 @@
     #shutter-btn:active { transform: scale(0.93); }
     #shutter-btn .inner { width: 58px; height: 58px; border-radius: 50%; background: #fff; transition: all 0.2s; }
     #shutter-btn.video-mode .inner { background: var(--red); }
-    #status-bar { font-size: 11px; color: var(--muted); text-align: center; min-height: 15px; line-height: 1.4; }
+    #status-bar { font-size: 11px; color: var(--muted); text-align: center; min-height: 15px; }
 
     /* PERMISSION */
     #perm-screen {
@@ -376,7 +356,7 @@
   <!-- TOP BAR -->
   <div id="topbar">
     <div class="brand">
-      <div class="brand-name">OrientCam <span class="brand-ver">v1.2</span></div>
+      <div class="brand-name">OrientCam <span class="brand-ver">v1.3</span></div>
       <div class="brand-sub">No-tilt · Voice · iPhone Edition</div>
     </div>
     <div id="mode-tabs">
@@ -388,17 +368,16 @@
   <!-- VIEWFINDER -->
   <div id="viewfinder">
 
-    <!-- Permission -->
     <div id="perm-screen">
       <div class="perm-icon">📷</div>
       <div class="perm-title">OrientCam</div>
-      <div class="perm-ver">v1.2 — iPhone Edition</div>
+      <div class="perm-ver">v1.3 — iPhone Edition</div>
       <p class="perm-sub">Shoot landscape photos and videos without tilting your iPhone.</p>
       <div class="perm-note">
         <strong>Photo:</strong> Live preview → rotated JPG<br>
         <strong>Video:</strong> Native camera → rotation applied after<br>
-        <span class="new">✦ Voice:</span> Tap 🎙 — command sheet slides up<br>
-        <span class="new">✦ Smart:</span> Used commands fade away from sheet
+        <span class="new">✦ v1.3:</span> See-through voice sheet<br>
+        <span class="new">✦ v1.3:</span> Near-instant voice response
       </div>
       <button id="perm-btn" onclick="startCamera()">Enable Camera</button>
     </div>
@@ -408,102 +387,41 @@
     <div id="orient-badge">Hold portrait → Output: Landscape</div>
     <div id="heard-badge"></div>
 
-    <!-- ── VOICE COMMAND SHEET ── -->
+    <!-- ── VOICE SHEET v1.3 — transparent, single row ── -->
     <div id="voice-sheet">
-      <div class="sheet-handle"></div>
       <div class="sheet-mic-row">
-        <div class="mic-status">
+        <div class="mic-live">
           <div class="mic-dot"></div>
-          <span class="mic-text">Listening — say a command</span>
+          <span class="mic-text">Listening</span>
         </div>
-        <button class="sheet-close" onclick="stopVoice()">Stop 🎙</button>
+        <button class="sheet-stop" onclick="stopVoice()">Stop 🎙</button>
       </div>
-
-      <!-- MODE group — disappears after photo/video said -->
-      <div class="cmd-section" id="grp-mode">
-        <div class="cmd-section-title">Mode</div>
-        <div class="cmd-chips">
-          <div class="cmd-chip" id="chip-photo">
-            <span class="chip-word">"Photo"</span>
-            <span class="chip-desc">Switch to photo</span>
-          </div>
-          <div class="cmd-chip" id="chip-video">
-            <span class="chip-word">"Video"</span>
-            <span class="chip-desc">Switch to video</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- CAPTURE group -->
-      <div class="cmd-section" id="grp-capture">
-        <div class="cmd-section-title">Capture</div>
-        <div class="cmd-chips">
-          <div class="cmd-chip" id="chip-capture">
-            <span class="chip-word">"Capture"</span>
-            <span class="chip-desc">Take photo / record</span>
-          </div>
-          <div class="cmd-chip" id="chip-click">
-            <span class="chip-word">"Click"</span>
-            <span class="chip-desc">Take photo</span>
-          </div>
-          <div class="cmd-chip" id="chip-record">
-            <span class="chip-word">"Record"</span>
-            <span class="chip-desc">Start video</span>
-          </div>
-          <div class="cmd-chip" id="chip-stop">
-            <span class="chip-word">"Stop"</span>
-            <span class="chip-desc">Stop recording</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- ROTATION group -->
-      <div class="cmd-section" id="grp-rotation">
-        <div class="cmd-section-title">Rotation</div>
-        <div class="cmd-chips">
-          <div class="cmd-chip" id="chip-landscape">
-            <span class="chip-word">"Landscape"</span>
-            <span class="chip-desc">90°</span>
-          </div>
-          <div class="cmd-chip" id="chip-normal">
-            <span class="chip-word">"Normal"</span>
-            <span class="chip-desc">0°</span>
-          </div>
-          <div class="cmd-chip" id="chip-flip">
-            <span class="chip-word">"Flip"</span>
-            <span class="chip-desc">180°</span>
-          </div>
-          <div class="cmd-chip" id="chip-reverse">
-            <span class="chip-word">"Reverse"</span>
-            <span class="chip-desc">-90°</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- CAMERA group -->
-      <div class="cmd-section" id="grp-camera">
-        <div class="cmd-section-title">Camera</div>
-        <div class="cmd-chips">
-          <div class="cmd-chip" id="chip-front">
-            <span class="chip-word">"Front"</span>
-            <span class="chip-desc">Front camera</span>
-          </div>
-          <div class="cmd-chip" id="chip-back">
-            <span class="chip-word">"Back"</span>
-            <span class="chip-desc">Back camera</span>
-          </div>
-          <div class="cmd-chip" id="chip-grid">
-            <span class="chip-word">"Grid"</span>
-            <span class="chip-desc">Toggle grid</span>
-          </div>
-          <div class="cmd-chip" id="chip-mirror">
-            <span class="chip-word">"Mirror"</span>
-            <span class="chip-desc">Toggle mirror</span>
-          </div>
-        </div>
+      <div class="chip-row" id="chip-row">
+        <!-- Mode chips — disappear after use -->
+        <div class="cmd-chip" id="chip-photo"><span class="chip-word">📷 Photo</span></div>
+        <div class="cmd-chip" id="chip-video"><span class="chip-word">🎬 Video</span></div>
+        <!-- Separator -->
+        <div style="width:0.5px;background:rgba(255,255,255,0.15);margin:0 2px;flex-shrink:0;"></div>
+        <!-- Capture chips — stay always -->
+        <div class="cmd-chip" id="chip-capture"><span class="chip-word">✦ Capture</span></div>
+        <div class="cmd-chip" id="chip-record"><span class="chip-word">⏺ Record</span></div>
+        <div class="cmd-chip" id="chip-stop"><span class="chip-word">⏹ Stop</span></div>
+        <!-- Separator -->
+        <div style="width:0.5px;background:rgba(255,255,255,0.15);margin:0 2px;flex-shrink:0;"></div>
+        <!-- Rotation chips — disappear after use -->
+        <div class="cmd-chip" id="chip-landscape"><span class="chip-word">↔ Landscape</span></div>
+        <div class="cmd-chip" id="chip-normal"><span class="chip-word">↕ Normal</span></div>
+        <div class="cmd-chip" id="chip-flip"><span class="chip-word">🔃 Flip</span></div>
+        <div class="cmd-chip" id="chip-reverse"><span class="chip-word">↩ Reverse</span></div>
+        <!-- Separator -->
+        <div style="width:0.5px;background:rgba(255,255,255,0.15);margin:0 2px;flex-shrink:0;"></div>
+        <!-- Camera chips — stay always -->
+        <div class="cmd-chip" id="chip-front"><span class="chip-word">🤳 Front</span></div>
+        <div class="cmd-chip" id="chip-back"><span class="chip-word">📸 Back</span></div>
+        <div class="cmd-chip" id="chip-grid"><span class="chip-word">⊞ Grid</span></div>
+        <div class="cmd-chip" id="chip-mirror"><span class="chip-word">↔ Mirror</span></div>
       </div>
     </div>
-    <!-- ── END VOICE SHEET ── -->
 
     <!-- Result -->
     <div id="result-area">
@@ -548,7 +466,7 @@
       <button class="icon-btn" id="btn-flip" onclick="flipCam()">🔄</button>
       <div id="shutter-btn" onclick="shutterPress()"><div class="inner"></div></div>
       <button class="icon-btn" id="btn-mirror" onclick="toggleMirror()">↔</button>
-      <button class="icon-btn" id="btn-voice" onclick="toggleVoice()" title="Voice">🎙</button>
+      <button class="icon-btn" id="btn-voice" onclick="toggleVoice()">🎙</button>
     </div>
     <div id="status-bar">Tap Enable Camera to begin</div>
   </div>
@@ -556,17 +474,19 @@
 </div>
 
 <script>
-// OrientCam v1.2 — iPhone Edition — 09-Apr-2026
-const APP_VERSION = '1.2';
+// OrientCam v1.3 — 09-Apr-2026
+// Key change: interimResults=true for instant response, en-US engine, transparent sheet
+const APP_VERSION = '1.3';
 
-let stream = null, mode = 'photo', rotation = 90;
-let facingMode = 'environment', mirrored = false, gridOn = false;
-let currentBlob = null, currentType = null;
-let voiceActive = false, recognition = null;
-let heardTimer = null;
-const photoCanvas = document.createElement('canvas');
+let stream=null, mode='photo', rotation=90;
+let facingMode='environment', mirrored=false, gridOn=false;
+let currentBlob=null, currentType=null;
+let voiceActive=false, recognition=null;
+let heardTimer=null;
+// Debounce: prevent same command firing twice in quick succession
+let lastCmd='', lastCmdTime=0;
+const photoCanvas=document.createElement('canvas');
 
-// Elements
 const preview     = document.getElementById('preview');
 const gridCanvas  = document.getElementById('grid-canvas');
 const orientBadge = document.getElementById('orient-badge');
@@ -590,67 +510,67 @@ const voiceSheet  = document.getElementById('voice-sheet');
 // ── CAMERA ──
 async function startCamera() {
   try {
-    setStatus('Requesting camera...');
-    if (stream) stream.getTracks().forEach(t => t.stop());
+    setStatus('Starting camera...');
+    if(stream) stream.getTracks().forEach(t=>t.stop());
     stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      video:{ facingMode, width:{ideal:1920}, height:{ideal:1080} },
       audio: false
     });
     preview.srcObject = stream;
     await preview.play();
     permScreen.style.display = 'none';
     applyTransform(); drawGrid();
-    setStatus('Ready — tap 🎙 for voice commands');
-  } catch(e) { setStatus('Camera error: ' + e.message); }
+    setStatus('Ready — tap 🎙 for voice');
+  } catch(e) { setStatus('Camera error: '+e.message); }
 }
 
 function applyTransform() {
   const wrap = document.getElementById('viewfinder');
-  const ww = wrap.clientWidth || 375, wh = wrap.clientHeight || 500;
-  const absR = Math.abs(((rotation % 360) + 360) % 360);
-  const transposed = absR === 90 || absR === 270;
-  const scale = transposed ? Math.min(ww/wh, wh/ww) * 0.95 : 1;
-  preview.style.transform = `scaleX(${mirrored ? -1 : 1}) rotate(${rotation}deg) scale(${scale})`;
+  const ww=wrap.clientWidth||375, wh=wrap.clientHeight||500;
+  const absR=Math.abs(((rotation%360)+360)%360);
+  const transposed=absR===90||absR===270;
+  const scale=transposed?Math.min(ww/wh,wh/ww)*0.95:1;
+  preview.style.transform=`scaleX(${mirrored?-1:1}) rotate(${rotation}deg) scale(${scale})`;
   updateBadge();
 }
 
 function updateBadge() {
-  const n = ((rotation % 360) + 360) % 360;
-  let label, display;
-  if      (n===0)   { label='Normal orientation';                   display='0° — Normal'; }
-  else if (n===90)  { label='Hold portrait → Output: Landscape ➡'; display='90° — Landscape'; }
-  else if (n===270) { label='Hold portrait → Output: Landscape ⬅'; display='-90° — Landscape ↩'; }
-  else if (n===180) { label='Hold portrait → Output: Upside-down'; display='180° — Flipped'; }
-  else              { label=`Custom rotation: ${rotation}°`;        display=rotation+'° — Custom'; }
-  orientBadge.textContent = label;
-  rotDisplay.textContent  = display;
+  const n=((rotation%360)+360)%360;
+  let label,display;
+  if(n===0)   {label='Normal orientation';                   display='0° — Normal';}
+  else if(n===90)  {label='Hold portrait → Output: Landscape ➡'; display='90° — Landscape';}
+  else if(n===270) {label='Hold portrait → Output: Landscape ⬅'; display='-90° — Landscape ↩';}
+  else if(n===180) {label='Hold portrait → Output: Upside-down'; display='180° — Flipped';}
+  else             {label=`Custom: ${rotation}°`;             display=rotation+'° — Custom';}
+  orientBadge.textContent=label;
+  rotDisplay.textContent=display;
 }
 
-function onRotate(val) { rotation=parseInt(val); updatePresets(); applyTransform(); }
-function setPreset(deg) { rotation=deg; rotSlider.value=deg; updatePresets(); applyTransform(); }
-function updatePresets() {
+function onRotate(val){ rotation=parseInt(val); updatePresets(); applyTransform(); }
+function setPreset(deg){ rotation=deg; rotSlider.value=deg; updatePresets(); applyTransform(); }
+function updatePresets(){
   const vals=[0,90,-90,180];
   document.querySelectorAll('.preset-btn').forEach((b,i)=>b.classList.toggle('active',vals[i]===rotation));
 }
 
 // ── SHUTTER ──
-function shutterPress() {
-  if (!stream && mode==='photo') { startCamera(); return; }
-  mode==='photo' ? capturePhoto() : captureVideo();
+function shutterPress(){
+  if(!stream&&mode==='photo'){startCamera();return;}
+  mode==='photo'?capturePhoto():captureVideo();
 }
 
 // ── PHOTO ──
-function capturePhoto() {
+function capturePhoto(){
   const vw=preview.videoWidth||1280, vh=preview.videoHeight||720;
   const absR=Math.abs(((rotation%360)+360)%360);
   const transposed=absR===90||absR===270;
-  photoCanvas.width =transposed?vh:vw;
+  photoCanvas.width=transposed?vh:vw;
   photoCanvas.height=transposed?vw:vh;
   const ctx=photoCanvas.getContext('2d');
   ctx.save();
   ctx.translate(photoCanvas.width/2,photoCanvas.height/2);
   ctx.rotate(rotation*Math.PI/180);
-  if(mirrored) ctx.scale(-1,1);
+  if(mirrored)ctx.scale(-1,1);
   ctx.drawImage(preview,-vw/2,-vh/2,vw,vh);
   ctx.restore();
   photoCanvas.toBlob(blob=>{
@@ -665,28 +585,27 @@ function capturePhoto() {
 }
 
 // ── VIDEO ──
-function captureVideo() { fileVideo.click(); }
+function captureVideo(){ fileVideo.click(); }
 
-fileVideo.addEventListener('change', function() {
-  const file=this.files[0];
-  if(!file) return;
-  rotation===0 ? showVideoResult(URL.createObjectURL(file),'No rotation — original video') : rotateVideoFrames(file);
+fileVideo.addEventListener('change',function(){
+  const file=this.files[0]; if(!file)return;
+  rotation===0?showVideoResult(URL.createObjectURL(file),'Original — no rotation'):rotateVideoFrames(file);
   this.value='';
 });
 
-async function rotateVideoFrames(file) {
+async function rotateVideoFrames(file){
   processing.classList.add('show');
   procDeg.textContent=rotation+'°'; procBar.style.width='0%';
   setStatus('Rotating video...');
-  try {
+  try{
     const videoEl=document.createElement('video');
     videoEl.muted=true; videoEl.playsInline=true;
     videoEl.src=URL.createObjectURL(file);
     await new Promise(r=>{videoEl.onloadedmetadata=r;});
-    const vw=videoEl.videoWidth, vh=videoEl.videoHeight, dur=videoEl.duration;
+    const vw=videoEl.videoWidth,vh=videoEl.videoHeight,dur=videoEl.duration;
     const absR=Math.abs(((rotation%360)+360)%360);
     const transposed=absR===90||absR===270;
-    const outW=transposed?vh:vw, outH=transposed?vw:vh;
+    const outW=transposed?vh:vw,outH=transposed?vw:vh;
     const canvas=document.createElement('canvas');
     canvas.width=outW; canvas.height=outH;
     const ctx=canvas.getContext('2d');
@@ -701,11 +620,11 @@ async function rotateVideoFrames(file) {
         procBar.style.width=Math.min((videoEl.currentTime/dur)*100,95)+'%';
         ctx.save(); ctx.clearRect(0,0,outW,outH);
         ctx.translate(outW/2,outH/2); ctx.rotate(rotation*Math.PI/180);
-        if(mirrored) ctx.scale(-1,1);
+        if(mirrored)ctx.scale(-1,1);
         ctx.drawImage(videoEl,-vw/2,-vh/2,vw,vh); ctx.restore();
       };
-      videoEl.onended=()=>{rec.stop(); resolve();};
-      setTimeout(()=>{rec.stop(); resolve();},(dur+5)*1000);
+      videoEl.onended=()=>{rec.stop();resolve();};
+      setTimeout(()=>{rec.stop();resolve();},(dur+5)*1000);
     });
     rec.onstop=()=>{
       procBar.style.width='100%';
@@ -716,14 +635,14 @@ async function rotateVideoFrames(file) {
         showVideoResult(URL.createObjectURL(blob),`Rotated ${rotation}° — ready to save`);
       },400);
     };
-  } catch(e) {
+  }catch(e){
     processing.classList.remove('show');
     currentBlob=file; currentType='video';
     showVideoResult(URL.createObjectURL(file),'Showing original — rotation failed');
   }
 }
 
-function showVideoResult(url,label) {
+function showVideoResult(url,label){
   resultVid.src=url; resultVid.classList.add('show');
   resultImg.classList.remove('show');
   resultLabel.textContent=label;
@@ -731,8 +650,8 @@ function showVideoResult(url,label) {
   setStatus('Video ready — save or retake');
 }
 
-filePhoto.addEventListener('change', function() {
-  const file=this.files[0]; if(!file) return;
+filePhoto.addEventListener('change',function(){
+  const file=this.files[0]; if(!file)return;
   processing.classList.add('show');
   const reader=new FileReader();
   reader.onload=e=>{
@@ -741,11 +660,15 @@ filePhoto.addEventListener('change', function() {
       const vw=img.width,vh=img.height;
       const absR=Math.abs(((rotation%360)+360)%360);
       const transposed=absR===90||absR===270;
-      photoCanvas.width=transposed?vh:vw; photoCanvas.height=transposed?vw:vh;
+      photoCanvas.width=transposed?vh:vw;
+      photoCanvas.height=transposed?vw:vh;
       const ctx=photoCanvas.getContext('2d');
-      ctx.save(); ctx.translate(photoCanvas.width/2,photoCanvas.height/2);
-      ctx.rotate(rotation*Math.PI/180); if(mirrored) ctx.scale(-1,1);
-      ctx.drawImage(img,-vw/2,-vh/2,vw,vh); ctx.restore();
+      ctx.save();
+      ctx.translate(photoCanvas.width/2,photoCanvas.height/2);
+      ctx.rotate(rotation*Math.PI/180);
+      if(mirrored)ctx.scale(-1,1);
+      ctx.drawImage(img,-vw/2,-vh/2,vw,vh);
+      ctx.restore();
       photoCanvas.toBlob(blob=>{
         currentBlob=blob; currentType='photo';
         resultImg.src=URL.createObjectURL(blob);
@@ -762,8 +685,8 @@ filePhoto.addEventListener('change', function() {
 });
 
 // ── SAVE / RETAKE ──
-function saveResult() {
-  if(!currentBlob) return;
+function saveResult(){
+  if(!currentBlob)return;
   const ext=currentType==='photo'?'jpg':'webm';
   const name=`orientcam_v${APP_VERSION}_${rotation}deg_${Date.now()}.${ext}`;
   const a=document.createElement('a');
@@ -772,7 +695,7 @@ function saveResult() {
   setStatus('Saved! Check Files app.');
 }
 
-function retake() {
+function retake(){
   resultArea.classList.remove('show');
   resultImg.classList.remove('show'); resultVid.classList.remove('show');
   resultImg.src=''; resultVid.src=''; currentBlob=null;
@@ -780,189 +703,221 @@ function retake() {
 }
 
 // ── CONTROLS ──
-function setMode(m) {
+function setMode(m){
   mode=m;
   document.querySelectorAll('.tab').forEach((t,i)=>
     t.classList.toggle('active',(m==='photo'&&i===0)||(m==='video'&&i===1)));
   shutterBtn.classList.toggle('video-mode',m==='video');
-  setStatus(m==='photo'?'Photo mode — tap circle or say "Capture"':'Video mode — tap circle or say "Record"');
+  setStatus(m==='photo'?'Photo mode':'Video mode');
 }
 
-async function flipCam() {
+async function flipCam(){
   facingMode=facingMode==='environment'?'user':'environment';
   if(stream){stream.getTracks().forEach(t=>t.stop()); await startCamera();}
-  setStatus('Camera: '+(facingMode==='user'?'Front':'Back'));
 }
 
-function toggleMirror() {
+function toggleMirror(){
   mirrored=!mirrored;
   document.getElementById('btn-mirror').classList.toggle('on',mirrored);
-  applyTransform(); setStatus('Mirror: '+(mirrored?'On':'Off'));
+  applyTransform();
 }
 
-function toggleGrid() {
+function toggleGrid(){
   gridOn=!gridOn;
   document.getElementById('btn-grid').classList.toggle('on',gridOn);
   gridCanvas.classList.toggle('show',gridOn);
-  if(gridOn) drawGrid(); setStatus('Grid: '+(gridOn?'On':'Off'));
+  if(gridOn)drawGrid();
 }
 
-function drawGrid() {
+function drawGrid(){
   const wrap=document.getElementById('viewfinder');
   gridCanvas.width=wrap.clientWidth; gridCanvas.height=wrap.clientHeight;
   const ctx=gridCanvas.getContext('2d');
   ctx.clearRect(0,0,gridCanvas.width,gridCanvas.height);
   ctx.strokeStyle='rgba(255,255,255,0.28)'; ctx.lineWidth=0.8;
   for(let i=1;i<3;i++){
-    ctx.beginPath(); ctx.moveTo(gridCanvas.width*i/3,0); ctx.lineTo(gridCanvas.width*i/3,gridCanvas.height); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0,gridCanvas.height*i/3); ctx.lineTo(gridCanvas.width,gridCanvas.height*i/3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(gridCanvas.width*i/3,0);
+    ctx.lineTo(gridCanvas.width*i/3,gridCanvas.height); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,gridCanvas.height*i/3);
+    ctx.lineTo(gridCanvas.width,gridCanvas.height*i/3); ctx.stroke();
   }
 }
 
-// ── VOICE ──
-function toggleVoice() { voiceActive ? stopVoice() : startVoice(); }
+// ── VOICE — v1.3 KEY CHANGES ──
+// 1. interimResults = true  → fires while still speaking = near instant
+// 2. lang = 'en-US'         → faster Google engine
+// 3. Debounce 800ms         → prevents double firing
+// 4. Match on interim text  → no waiting for final result
 
-function startVoice() {
+function toggleVoice(){ voiceActive?stopVoice():startVoice(); }
+
+function startVoice(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){ setStatus('Voice not supported on this browser'); return; }
+  if(!SR){ setStatus('Voice not supported on this device'); return; }
 
-  // Reset all chips to visible
+  // Reset chips
   document.querySelectorAll('.cmd-chip').forEach(c=>c.classList.remove('used','heard'));
+  document.querySelectorAll('.cmd-section').forEach(s=>s.style.display='');
 
   recognition=new SR();
   recognition.continuous=true;
-  recognition.interimResults=false;
-  recognition.lang='en-IN';
+  recognition.interimResults=true;   // KEY: fire immediately, don't wait for silence
+  recognition.lang='en-US';          // KEY: faster engine than en-IN
+  recognition.maxAlternatives=1;
 
   recognition.onstart=()=>{
     voiceActive=true;
     document.getElementById('btn-voice').classList.add('voice-on');
     voiceSheet.classList.add('open');
-    setStatus('🎙 Listening — say a command');
+    setStatus('🎙 Listening...');
   };
 
   recognition.onresult=e=>{
-    const transcript=e.results[e.results.length-1][0].transcript.trim().toLowerCase();
-    handleVoiceCommand(transcript);
+    // Check both interim and final results — whichever comes first
+    for(let i=e.resultIndex; i<e.results.length; i++){
+      const text=e.results[i][0].transcript.toLowerCase().trim();
+      if(text.length<2) continue;
+      // Debounce: skip if same command within 800ms
+      const now=Date.now();
+      const cmdKey=getCommandKey(text);
+      if(cmdKey && cmdKey===lastCmd && (now-lastCmdTime)<800) continue;
+      if(cmdKey){
+        lastCmd=cmdKey; lastCmdTime=now;
+        handleVoiceCommand(text);
+        break; // Only process first match per event
+      }
+    }
   };
 
-  recognition.onerror=e=>{ if(e.error!=='no-speech'){ setStatus('Voice: '+e.error); stopVoice(); } };
+  recognition.onerror=e=>{
+    if(e.error==='not-allowed'){ setStatus('Mic permission denied'); stopVoice(); }
+    // Ignore no-speech — keep listening
+  };
+
+  // Auto-restart to keep session alive
   recognition.onend=()=>{ if(voiceActive) recognition.start(); };
   recognition.start();
 }
 
-function stopVoice() {
+function stopVoice(){
   voiceActive=false;
-  if(recognition){ recognition.stop(); recognition=null; }
+  if(recognition){ recognition.abort(); recognition=null; }
   document.getElementById('btn-voice').classList.remove('voice-on');
   voiceSheet.classList.remove('open');
   setStatus('Voice off');
 }
 
-// Flash chip green then mark as used (fade+collapse)
-function useChip(chipId, keepAlive) {
+// Returns command key for debounce matching
+function getCommandKey(text){
+  if(text.includes('photo'))     return 'photo';
+  if(text.includes('video'))     return 'video';
+  if(text.includes('capture')||text.includes('shoot')) return 'capture';
+  if(text.includes('click'))     return 'click';
+  if(text.includes('record'))    return 'record';
+  if(text.includes('stop'))      return 'stop';
+  if(text.includes('landscape')) return 'landscape';
+  if(text.includes('normal'))    return 'normal';
+  if(text.includes('flip'))      return 'flip';
+  if(text.includes('reverse'))   return 'reverse';
+  if(text.includes('front'))     return 'front';
+  if(text.includes('back'))      return 'back';
+  if(text.includes('grid'))      return 'grid';
+  if(text.includes('mirror'))    return 'mirror';
+  return null;
+}
+
+function flashChip(chipId, keepAlive){
   const chip=document.getElementById(chipId);
-  if(!chip) return;
+  if(!chip)return;
   chip.classList.add('heard');
   setTimeout(()=>{
-    if(!keepAlive) {
+    if(keepAlive){ chip.classList.remove('heard'); }
+    else {
       chip.classList.add('used');
-      // If whole group is used, hide group title
-      const group=chip.closest('.cmd-section');
-      if(group){
-        const remaining=group.querySelectorAll('.cmd-chip:not(.used)');
-        if(remaining.length===0) group.style.display='none';
-      }
-    } else {
-      chip.classList.remove('heard');
+      // Hide group if all chips used
+      const grp=chip.closest('.cmd-section');
+      if(grp&&grp.querySelectorAll('.cmd-chip:not(.used)').length===0)
+        grp.style.display='none';
     }
-  }, 500);
+  }, 400);
 }
 
-function showHeard(text) {
-  heardBadge.textContent='✓ "'+text+'"';
+function showHeard(text){
+  heardBadge.textContent='✓ '+text;
   heardBadge.classList.add('show');
   clearTimeout(heardTimer);
-  heardTimer=setTimeout(()=>heardBadge.classList.remove('show'),2000);
+  heardTimer=setTimeout(()=>heardBadge.classList.remove('show'), 1200);
 }
 
-function handleVoiceCommand(text) {
-  // MODE — chip disappears after use
-  if(text.includes('photo')) {
-    showHeard('Photo'); useChip('chip-photo', false);
-    setMode('photo'); return;
-  }
-  if(text.includes('video')) {
-    showHeard('Video'); useChip('chip-video', false);
-    setMode('video'); return;
-  }
+function handleVoiceCommand(text){
+  const cmd=getCommandKey(text);
+  if(!cmd)return;
 
-  // CAPTURE — chips stay (reusable)
-  if(text.includes('capture')||text.includes('shoot')) {
-    showHeard('Capture'); useChip('chip-capture', true);
-    shutterPress(); return;
-  }
-  if(text.includes('click')) {
-    showHeard('Click'); useChip('chip-click', true);
-    if(mode!=='photo') setMode('photo'); shutterPress(); return;
-  }
-  if(text.includes('record')) {
-    showHeard('Record'); useChip('chip-record', true);
-    if(mode!=='video') setMode('video'); shutterPress(); return;
-  }
-  if(text.includes('stop')) {
-    showHeard('Stop'); useChip('chip-stop', true);
-    shutterPress(); return;
-  }
+  switch(cmd){
+    case 'photo':
+      showHeard('Photo'); flashChip('chip-photo',false);
+      setMode('photo'); break;
 
-  // ROTATION — chip disappears after use (single-use makes sense)
-  if(text.includes('landscape')) {
-    showHeard('Landscape'); useChip('chip-landscape', false);
-    setPreset(90); return;
-  }
-  if(text.includes('normal')) {
-    showHeard('Normal'); useChip('chip-normal', false);
-    setPreset(0); return;
-  }
-  if(text.includes('flip')) {
-    showHeard('Flip'); useChip('chip-flip', false);
-    setPreset(180); return;
-  }
-  if(text.includes('reverse')) {
-    showHeard('Reverse'); useChip('chip-reverse', false);
-    setPreset(-90); return;
-  }
+    case 'video':
+      showHeard('Video'); flashChip('chip-video',false);
+      setMode('video'); break;
 
-  // CAMERA — chips stay
-  if(text.includes('front')) {
-    showHeard('Front'); useChip('chip-front', true);
-    facingMode='user'; if(stream){stream.getTracks().forEach(t=>t.stop()); startCamera();} return;
-  }
-  if(text.includes('back')) {
-    showHeard('Back'); useChip('chip-back', true);
-    facingMode='environment'; if(stream){stream.getTracks().forEach(t=>t.stop()); startCamera();} return;
-  }
-  if(text.includes('grid')) {
-    showHeard('Grid'); useChip('chip-grid', true);
-    toggleGrid(); return;
-  }
-  if(text.includes('mirror')) {
-    showHeard('Mirror'); useChip('chip-mirror', true);
-    toggleMirror(); return;
-  }
+    case 'capture': case 'shoot':
+      showHeard('Capture'); flashChip('chip-capture',true);
+      shutterPress(); break;
 
-  // Unrecognised
-  if(text.length>1){
-    heardBadge.textContent='? "'+text+'"';
-    heardBadge.style.color='#ff9f0a';
-    heardBadge.classList.add('show');
-    clearTimeout(heardTimer);
-    heardTimer=setTimeout(()=>{heardBadge.classList.remove('show'); heardBadge.style.color='';},1800);
+    case 'click':
+      showHeard('Click'); flashChip('chip-capture',true);
+      if(mode!=='photo')setMode('photo');
+      shutterPress(); break;
+
+    case 'record':
+      showHeard('Record'); flashChip('chip-record',true);
+      if(mode!=='video')setMode('video');
+      shutterPress(); break;
+
+    case 'stop':
+      showHeard('Stop'); flashChip('chip-stop',true);
+      shutterPress(); break;
+
+    case 'landscape':
+      showHeard('Landscape'); flashChip('chip-landscape',false);
+      setPreset(90); break;
+
+    case 'normal':
+      showHeard('Normal'); flashChip('chip-normal',false);
+      setPreset(0); break;
+
+    case 'flip':
+      showHeard('Flip'); flashChip('chip-flip',false);
+      setPreset(180); break;
+
+    case 'reverse':
+      showHeard('Reverse'); flashChip('chip-reverse',false);
+      setPreset(-90); break;
+
+    case 'front':
+      showHeard('Front'); flashChip('chip-front',true);
+      facingMode='user';
+      if(stream){stream.getTracks().forEach(t=>t.stop()); startCamera();} break;
+
+    case 'back':
+      showHeard('Back'); flashChip('chip-back',true);
+      facingMode='environment';
+      if(stream){stream.getTracks().forEach(t=>t.stop()); startCamera();} break;
+
+    case 'grid':
+      showHeard('Grid'); flashChip('chip-grid',true);
+      toggleGrid(); break;
+
+    case 'mirror':
+      showHeard('Mirror'); flashChip('chip-mirror',true);
+      toggleMirror(); break;
   }
 }
 
 function setStatus(msg){ statusBar.textContent=msg; }
-window.addEventListener('resize',()=>{ applyTransform(); if(gridOn) drawGrid(); });
+window.addEventListener('resize',()=>{ applyTransform(); if(gridOn)drawGrid(); });
 if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
 </script>
 </body>

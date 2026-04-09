@@ -1,23 +1,11 @@
 /*
   OrientCam — Service Worker
-  Version : 1.2
+  Version : 1.3
   Date    : 09-Apr-2026
-  Cache   : orientcam-v1.2-cache
-  Changes : Bumped from v1.1-cache — forces fresh download
+  Cache   : orientcam-v1.3-cache
 */
-const CACHE_NAME = 'orientcam-v1.2-cache';
-const ASSETS = ['./index.html', './manifest.json'];
-
-self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS)));
-  self.skipWaiting();
-});
-self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys =>
-    Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-  ));
-  self.clients.claim();
-});
-self.addEventListener('fetch', e => {
-  e.respondWith(caches.match(e.request).then(c => c || fetch(e.request)));
-});
+const CACHE_NAME='orientcam-v1.3-cache';
+const ASSETS=['./index.html','./manifest.json'];
+self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(ASSETS)));self.skipWaiting();});
+self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE_NAME).map(k=>caches.delete(k)))));self.clients.claim();});
+self.addEventListener('fetch',e=>{e.respondWith(caches.match(e.request).then(c=>c||fetch(e.request)));});

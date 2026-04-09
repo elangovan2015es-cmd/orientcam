@@ -1,40 +1,44 @@
 # OrientCam — iPhone Edition
 
-| Item     | Detail          |
-|----------|-----------------|
-| Version  | 1.2             |
-| Date     | 09-Apr-2026     |
-| Platform | iPhone Safari   |
-| Author   | Elango / EIL    |
-
----
+| Item     | Detail        |
+|----------|---------------|
+| Version  | 1.3           |
+| Date     | 09-Apr-2026   |
+| Platform | iPhone Safari |
+| Author   | Elango / EIL  |
 
 ## File Versions
 
-| File          | Version | Cache                  |
-|---------------|---------|------------------------|
-| index.html    | v1.2    | —                      |
-| manifest.json | v1.2    | —                      |
-| sw.js         | v1.2    | orientcam-v1.2-cache   |
+| File          | Version | Cache                 |
+|---------------|---------|-----------------------|
+| index.html    | v1.3    | —                     |
+| manifest.json | v1.3    | —                     |
+| sw.js         | v1.3    | orientcam-v1.3-cache  |
 
----
+## What's New in v1.3
 
-## What's New in v1.2 — Voice Command Sheet
+### Transparent Voice Sheet
+- Background only 15% black — camera fully visible through sheet
+- blur(2px) only — scene clearly visible
+- Single slim horizontal row of compact chips
+- Slides up from bottom edge — minimal footprint
 
-- Tap 🎙 → translucent sheet slides up from bottom
-- Sheet shows all available voice commands as chips
-- Say a command → chip flashes green → confirmed
-- One-time commands (Photo, Video, Landscape etc.) fade and collapse after use
-- Reusable commands (Capture, Record, Stop etc.) stay visible
-- Say "Photo" or "Video" → those mode chips disappear, rest remains
-- Tap "Stop 🎙" or tap 🎙 again to close sheet
+### Near-Instant Voice Response
+- `interimResults: true` — fires while you are still speaking
+- `lang: en-US` — faster Google recognition engine
+- 800ms debounce — prevents double firing
+- Command matched on first keyword — no waiting
 
----
+### Smart Chip Behaviour
+- One-time commands (Photo, Video, Landscape, Normal, Flip, Reverse) — fade away after use
+- Reusable commands (Capture, Record, Stop, Front, Back, Grid, Mirror) — stay always
+- Heard command flashes green instantly
 
 ## Version History
 
-| Version | Date        | Changes                                         |
-|---------|-------------|-------------------------------------------------|
-| 1.0     | 09-Apr-2026 | Initial release                                 |
-| 1.1     | 09-Apr-2026 | Video rotation post-processing + Voice commands |
-| 1.2     | 09-Apr-2026 | Dynamic translucent voice command sheet         |
+| Version | Date        | Changes                                          |
+|---------|-------------|--------------------------------------------------|
+| 1.0     | 09-Apr-2026 | Initial release                                  |
+| 1.1     | 09-Apr-2026 | Video rotation + voice commands                  |
+| 1.2     | 09-Apr-2026 | Translucent voice sheet with collapsing chips    |
+| 1.3     | 09-Apr-2026 | Transparent sheet + instant voice via interimResults |
