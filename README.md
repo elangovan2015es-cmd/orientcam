@@ -1,67 +1,40 @@
 # OrientCam — iPhone Edition
 
-| Item     | Detail                        |
-|----------|-------------------------------|
-| Version  | 1.1                           |
-| Date     | 09-Apr-2026                   |
-| Platform | iPhone — Safari PWA           |
-| Author   | Elango / EIL                  |
+| Item     | Detail          |
+|----------|-----------------|
+| Version  | 1.2             |
+| Date     | 09-Apr-2026     |
+| Platform | iPhone Safari   |
+| Author   | Elango / EIL    |
 
 ---
 
-## File Version Reference
+## File Versions
 
-| File          | Version | Cache Name            |
-|---------------|---------|-----------------------|
-| index.html    | v1.1    | —                     |
-| manifest.json | v1.1    | —                     |
-| sw.js         | v1.1    | orientcam-v1.1-cache  |
-| README.md     | v1.1    | —                     |
-
----
-
-## What's New in v1.1
-
-### 1. Video Post-Processing Rotation
-- After recording via iPhone native camera, video is brought back into app
-- App re-draws every frame rotated to the selected angle
-- Progress bar shows rotation progress
-- Saves as rotated .webm file
-
-### 2. Voice Commands
-Tap the 🎙 mic button to activate. Say:
-
-| Say          | Action                    |
-|--------------|---------------------------|
-| "Photo"      | Switch to photo mode      |
-| "Video"      | Switch to video mode      |
-| "Capture"    | Take photo / start record |
-| "Click"      | Take photo                |
-| "Record"     | Start video recording     |
-| "Stop"       | Stop recording            |
-| "Landscape"  | Rotation 90°              |
-| "Normal"     | Rotation 0°               |
-| "Flip"       | Rotation 180°             |
-| "Reverse"    | Rotation -90°             |
-| "Front"      | Front camera              |
-| "Back"       | Back camera               |
-| "Grid"       | Toggle grid               |
-| "Mirror"     | Toggle mirror             |
-
-Tap ❓ to see full voice command list inside the app.
+| File          | Version | Cache                  |
+|---------------|---------|------------------------|
+| index.html    | v1.2    | —                      |
+| manifest.json | v1.2    | —                      |
+| sw.js         | v1.2    | orientcam-v1.2-cache   |
 
 ---
 
-## Deploy (Overwrite v1.0)
+## What's New in v1.2 — Voice Command Sheet
 
-Upload all 4 files to `elangovan2015es-cmd/orientcam` repo — overwrite existing files.
-The new cache name in sw.js (`orientcam-v1.1-cache`) forces all iPhones to download fresh.
+- Tap 🎙 → translucent sheet slides up from bottom
+- Sheet shows all available voice commands as chips
+- Say a command → chip flashes green → confirmed
+- One-time commands (Photo, Video, Landscape etc.) fade and collapse after use
+- Reusable commands (Capture, Record, Stop etc.) stay visible
+- Say "Photo" or "Video" → those mode chips disappear, rest remains
+- Tap "Stop 🎙" or tap 🎙 again to close sheet
 
 ---
 
 ## Version History
 
-| Version | Date        | Changes                                        |
-|---------|-------------|------------------------------------------------|
-| 1.0     | 09-Apr-2026 | Initial release                                |
-| 1.1     | 09-Apr-2026 | Video rotation post-processing + Voice commands|
+| Version | Date        | Changes                                         |
+|---------|-------------|-------------------------------------------------|
+| 1.0     | 09-Apr-2026 | Initial release                                 |
+| 1.1     | 09-Apr-2026 | Video rotation post-processing + Voice commands |
+| 1.2     | 09-Apr-2026 | Dynamic translucent voice command sheet         |
