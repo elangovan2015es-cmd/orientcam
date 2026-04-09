@@ -1,7 +1,10 @@
 {
-  "name": "OrientCam",
+  "_version": "1.0",
+  "_date": "09-Apr-2026",
+  "_app": "OrientCam — iPhone Edition",
+  "name": "OrientCam v1.0",
   "short_name": "OrientCam",
-  "description": "Shoot landscape video holding phone in portrait — no tilting needed",
+  "description": "Shoot landscape photos and videos without tilting your iPhone — v1.0",
   "start_url": "./index.html",
   "display": "fullscreen",
   "orientation": "portrait",
@@ -9,15 +12,9 @@
   "theme_color": "#0a0a0a",
   "icons": [
     {
-      "src": "icon-192.png",
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='40' fill='%230a0a0a'/><rect x='36' y='60' width='120' height='80' rx='12' fill='none' stroke='%23ffa500' stroke-width='10'/><circle cx='96' cy='100' r='22' fill='%23ffa500'/></svg>",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
+      "type": "image/svg+xml",
       "purpose": "any maskable"
     }
   ]

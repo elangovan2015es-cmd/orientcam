@@ -1,107 +1,105 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <!--
+    OrientCam — iPhone Edition
+    Version : 1.0
+    Date    : 09-Apr-2026
+    Author  : Elango / EIL
+    Desc    : Shoot landscape photos/videos without tilting iPhone
+    Files   : index.html v1.0 | manifest.json v1.0 | sw.js v1.0
+  -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>OrientCam</title>
-  <meta name="description" content="Shoot landscape video while holding phone in portrait — no tilting needed">
+  <title>OrientCam v1.0</title>
+  <meta name="description" content="Shoot landscape photos and videos without tilting your iPhone — v1.0">
   <meta name="theme-color" content="#0a0a0a">
-  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="OrientCam">
-
-  <!-- PWA Manifest inline -->
   <link rel="manifest" href="manifest.json">
-
-  <!-- Favicon / App Icon via SVG -->
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230a0a0a'/><rect x='20' y='30' width='60' height='40' rx='6' fill='none' stroke='%23ffa500' stroke-width='5'/><circle cx='50' cy='50' r='10' fill='%23ffa500'/><polygon points='72,25 80,50 72,75' fill='%23ffa500'/></svg>">
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
       --orange: #ffa500;
-      --orange-dim: rgba(255,165,0,0.2);
-      --white: #ffffff;
+      --orange-dim: rgba(255,165,0,0.15);
       --bg: #0a0a0a;
       --surface: #141414;
       --surface2: #1e1e1e;
       --border: rgba(255,255,255,0.1);
-      --text: rgba(255,255,255,0.85);
-      --text-muted: rgba(255,255,255,0.4);
+      --text: rgba(255,255,255,0.9);
+      --muted: rgba(255,255,255,0.4);
+      --red: #ff3b30;
+      --version: "v1.0";
     }
 
     html, body {
       height: 100%;
       overflow: hidden;
       background: var(--bg);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
       color: var(--text);
-      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
 
     #app {
       display: flex;
       flex-direction: column;
       height: 100vh;
-      height: 100dvh;
+      height: -webkit-fill-available;
       overflow: hidden;
     }
 
-    /* ── TOP BAR ── */
+    /* TOP BAR */
     #topbar {
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 12px 16px;
+      padding-top: max(env(safe-area-inset-top), 12px);
       background: var(--surface);
-      border-bottom: 1px solid var(--border);
+      border-bottom: 0.5px solid var(--border);
       flex-shrink: 0;
-      z-index: 20;
     }
 
-    .app-name {
-      font-size: 18px;
-      font-weight: 700;
-      letter-spacing: -0.5px;
-      color: var(--orange);
+    .brand { display: flex; flex-direction: column; gap: 1px; }
+    .brand-name {
+      font-size: 19px; font-weight: 700;
+      color: var(--orange); letter-spacing: -0.5px;
+      display: flex; align-items: baseline; gap: 6px;
     }
-
-    .app-tagline {
-      font-size: 10px;
-      color: var(--text-muted);
+    .brand-ver {
+      font-size: 10px; font-weight: 500;
+      color: var(--orange); opacity: 0.6;
       letter-spacing: 0.3px;
     }
+    .brand-sub { font-size: 10px; color: var(--muted); letter-spacing: 0.3px; }
 
-    #mode-toggle {
+    #mode-tabs {
       display: flex;
       background: var(--surface2);
-      border-radius: 20px;
+      border-radius: 22px;
       padding: 3px;
-      gap: 2px;
-      border: 1px solid var(--border);
+      border: 0.5px solid var(--border);
     }
-
-    .mode-btn {
-      border: none;
-      background: transparent;
-      color: var(--text-muted);
+    .tab {
+      padding: 6px 16px;
+      border-radius: 18px;
       font-size: 13px;
-      padding: 5px 14px;
-      border-radius: 16px;
+      font-weight: 500;
+      color: var(--muted);
       cursor: pointer;
       transition: all 0.2s;
-      font-weight: 500;
+      border: none;
+      background: transparent;
     }
+    .tab.active { background: var(--orange); color: #000; font-weight: 700; }
 
-    .mode-btn.active {
-      background: var(--orange);
-      color: #000;
-    }
-
-    /* ── VIEWFINDER ── */
-    #viewfinder-wrap {
+    /* VIEWFINDER */
+    #viewfinder {
       flex: 1;
       position: relative;
       background: #000;
@@ -109,566 +107,500 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      min-height: 0;
     }
 
     #preview {
-      width: 100%;
-      height: 100%;
+      width: 100%; height: 100%;
       object-fit: cover;
       display: block;
-      transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
+    #file-photo, #file-video { display: none; }
+
     #grid-canvas {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      z-index: 3;
-      opacity: 0;
-      transition: opacity 0.3s;
+      position: absolute; inset: 0;
+      pointer-events: none; z-index: 3;
+      opacity: 0; transition: opacity 0.3s;
     }
     #grid-canvas.show { opacity: 1; }
 
     #orient-badge {
-      position: absolute;
-      top: 12px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(255,165,0,0.9);
-      color: #000;
-      font-size: 11px;
-      font-weight: 600;
-      padding: 4px 12px;
-      border-radius: 20px;
-      white-space: nowrap;
-      z-index: 5;
-      letter-spacing: 0.2px;
+      position: absolute; top: 10px;
+      left: 50%; transform: translateX(-50%);
+      background: rgba(255,165,0,0.92);
+      color: #000; font-size: 11px; font-weight: 600;
+      padding: 4px 14px; border-radius: 20px;
+      white-space: nowrap; z-index: 5;
     }
 
-    #rec-badge {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      display: none;
-      align-items: center;
-      gap: 6px;
+    #ios-note {
+      position: absolute; bottom: 10px;
+      left: 50%; transform: translateX(-50%);
       background: rgba(0,0,0,0.6);
-      backdrop-filter: blur(4px);
-      border: 1px solid rgba(255,59,48,0.5);
-      padding: 5px 10px;
-      border-radius: 20px;
-      z-index: 5;
-    }
-    #rec-badge.show { display: flex; }
-
-    .rec-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: #ff3b30;
-      animation: pulse 1s ease-in-out infinite;
-    }
-    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(0.8)} }
-
-    #rec-time {
-      color: #fff;
-      font-size: 13px;
-      font-weight: 600;
-      font-variant-numeric: tabular-nums;
+      color: rgba(255,255,255,0.6);
+      font-size: 10px; padding: 4px 12px;
+      border-radius: 10px; white-space: nowrap; z-index: 5;
     }
 
-    #snap-thumb {
-      position: absolute;
-      bottom: 12px;
-      left: 12px;
-      width: 56px;
-      height: 56px;
-      border-radius: 10px;
-      object-fit: cover;
-      border: 2px solid var(--white);
-      display: none;
-      z-index: 5;
-      cursor: pointer;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.5);
-    }
-
-    /* ── PERMISSION SCREEN ── */
-    #perm-screen {
-      position: absolute;
-      inset: 0;
-      display: flex;
+    /* RESULT AREA */
+    #result-area {
+      display: none; position: absolute; inset: 0;
+      background: #000; z-index: 10;
       flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      background: #000;
-      z-index: 30;
-      padding: 32px 24px;
-      text-align: center;
+      align-items: center; justify-content: center;
+    }
+    #result-area.show { display: flex; }
+
+    #result-img {
+      max-width: 100%; max-height: 75%;
+      object-fit: contain; display: none;
+    }
+    #result-img.show { display: block; }
+
+    #result-video {
+      max-width: 100%; max-height: 75%;
+      display: none; border-radius: 6px;
+    }
+    #result-video.show { display: block; }
+
+    #result-actions {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 16px; display: flex; gap: 10px;
+      background: rgba(0,0,0,0.7);
     }
 
-    .perm-icon {
-      width: 72px; height: 72px;
-      background: var(--surface2);
-      border-radius: 20px;
-      border: 1px solid var(--border);
+    .result-btn {
+      flex: 1; padding: 13px; border-radius: 14px;
+      border: none; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: opacity 0.15s;
+    }
+    .result-btn:active { opacity: 0.75; }
+    .btn-save { background: var(--orange); color: #000; }
+    .btn-retake { background: var(--surface2); color: var(--text); border: 0.5px solid var(--border); }
+
+    /* ROTATION */
+    #rot-section {
+      background: var(--surface);
+      border-top: 0.5px solid var(--border);
+      padding: 12px 16px 8px;
+      flex-shrink: 0;
+    }
+
+    .rot-header {
+      display: flex; justify-content: space-between;
+      align-items: center; margin-bottom: 10px;
+    }
+    .rot-title { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; }
+    .rot-value { font-size: 13px; font-weight: 600; color: var(--orange); }
+
+    .rot-presets { display: flex; gap: 8px; margin-bottom: 10px; }
+    .preset-btn {
+      flex: 1; padding: 7px 0; border-radius: 10px;
+      border: 0.5px solid var(--border); background: var(--surface2);
+      color: var(--muted); font-size: 12px; font-weight: 500;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .preset-btn.active {
+      border-color: var(--orange);
+      background: var(--orange-dim);
+      color: var(--orange);
+    }
+    .preset-btn:active { transform: scale(0.96); }
+
+    input[type=range] {
+      width: 100%; height: 4px; border-radius: 2px;
+      background: var(--surface2); outline: none;
+      border: none; cursor: pointer;
+      -webkit-appearance: none; accent-color: var(--orange);
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--orange); cursor: pointer;
+      box-shadow: 0 0 0 3px rgba(255,165,0,0.2);
+    }
+
+    /* CONTROLS */
+    #controls {
+      background: var(--surface);
+      border-top: 0.5px solid var(--border);
+      padding: 14px 20px;
+      padding-bottom: max(env(safe-area-inset-bottom), 14px);
+      flex-shrink: 0;
+    }
+
+    .btn-row {
+      display: flex; align-items: center;
+      justify-content: space-evenly; margin-bottom: 10px;
+    }
+
+    .icon-btn {
+      width: 46px; height: 46px; border-radius: 50%;
+      border: 0.5px solid var(--border); background: var(--surface2);
+      color: var(--text); font-size: 19px; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      font-size: 36px;
+      transition: all 0.15s;
+    }
+    .icon-btn:active { transform: scale(0.9); }
+    .icon-btn.on { border-color: var(--orange); background: var(--orange-dim); }
+
+    #shutter-btn {
+      width: 74px; height: 74px; border-radius: 50%;
+      border: 3px solid #fff; background: transparent;
+      cursor: pointer; display: flex;
+      align-items: center; justify-content: center;
+      transition: transform 0.15s; flex-shrink: 0;
+    }
+    #shutter-btn:active { transform: scale(0.93); }
+    #shutter-btn .inner {
+      width: 58px; height: 58px; border-radius: 50%;
+      background: #fff; transition: all 0.2s;
+    }
+    #shutter-btn.video-mode .inner { background: var(--red); }
+
+    #status-bar {
+      font-size: 11px; color: var(--muted);
+      text-align: center; min-height: 15px; line-height: 1.4;
     }
 
-    .perm-title {
-      font-size: 20px;
-      font-weight: 700;
-      color: var(--white);
+    /* PERMISSION */
+    #perm-screen {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 18px; background: #000; z-index: 40;
+      padding: 40px 28px; text-align: center;
     }
-
+    .perm-icon {
+      width: 80px; height: 80px; background: var(--surface2);
+      border-radius: 22px; border: 0.5px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 40px;
+    }
+    .perm-title { font-size: 22px; font-weight: 700; }
+    .perm-ver { font-size: 12px; color: var(--orange); opacity: 0.7; margin-top: -10px; }
     .perm-sub {
-      font-size: 13px;
-      color: var(--text-muted);
-      line-height: 1.7;
-      max-width: 280px;
+      font-size: 14px; color: var(--muted);
+      line-height: 1.7; max-width: 300px;
     }
-
+    .perm-note {
+      font-size: 12px; color: var(--muted);
+      background: var(--surface2); border: 0.5px solid var(--border);
+      border-radius: 12px; padding: 10px 16px;
+      line-height: 1.6; max-width: 300px;
+    }
+    .perm-note strong { color: var(--orange); }
     #perm-btn {
-      background: var(--orange);
-      color: #000;
-      border: none;
-      padding: 13px 32px;
-      border-radius: 30px;
-      font-size: 15px;
-      font-weight: 700;
-      cursor: pointer;
-      margin-top: 8px;
-      letter-spacing: 0.2px;
+      background: var(--orange); color: #000; border: none;
+      padding: 14px 40px; border-radius: 30px;
+      font-size: 16px; font-weight: 700; cursor: pointer;
       transition: opacity 0.15s, transform 0.15s;
     }
     #perm-btn:active { opacity: 0.8; transform: scale(0.97); }
 
-    /* ── CONTROLS ── */
-    #controls {
-      flex-shrink: 0;
-      background: var(--surface);
-      border-top: 1px solid var(--border);
-      padding: 12px 16px 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
+    /* PROCESSING */
+    #processing {
+      display: none; position: absolute; inset: 0;
+      background: rgba(0,0,0,0.75); z-index: 20;
+      flex-direction: column; align-items: center;
+      justify-content: center; gap: 14px;
     }
-
-    .ctrl-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .ctrl-label {
-      font-size: 10px;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      min-width: 48px;
-    }
-
-    input[type=range] {
-      flex: 1;
-      height: 4px;
-      border-radius: 2px;
-      background: var(--surface2);
-      outline: none;
-      border: none;
-      cursor: pointer;
-      -webkit-appearance: none;
-      accent-color: var(--orange);
-    }
-    input[type=range]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 20px; height: 20px;
-      border-radius: 50%;
-      background: var(--orange);
-      cursor: pointer;
-    }
-
-    .rot-val {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--orange);
-      min-width: 36px;
-      text-align: right;
-      font-variant-numeric: tabular-nums;
-    }
-
-    /* ── MAIN BUTTONS ROW ── */
-    .btn-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-evenly;
-    }
-
-    .icon-btn {
+    #processing.show { display: flex; }
+    .spinner {
       width: 44px; height: 44px;
+      border: 3px solid rgba(255,165,0,0.2);
+      border-top-color: var(--orange);
       border-radius: 50%;
-      border: 1px solid var(--border);
-      background: var(--surface2);
-      color: var(--text);
-      font-size: 18px;
-      cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: all 0.15s;
-      -webkit-tap-highlight-color: transparent;
+      animation: spin 0.8s linear infinite;
     }
-    .icon-btn:active { transform: scale(0.92); }
-    .icon-btn.on { border-color: var(--orange); background: var(--orange-dim); color: var(--orange); }
-
-    #shutter {
-      width: 70px; height: 70px;
-      border-radius: 50%;
-      border: 3px solid var(--white);
-      background: transparent;
-      cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: all 0.2s;
-      -webkit-tap-highlight-color: transparent;
-      flex-shrink: 0;
-    }
-    #shutter .inner {
-      width: 54px; height: 54px;
-      border-radius: 50%;
-      background: var(--white);
-      transition: all 0.2s;
-    }
-    #shutter.rec { border-color: #ff3b30; }
-    #shutter.rec .inner {
-      background: #ff3b30;
-      border-radius: 10px;
-      width: 28px; height: 28px;
-    }
-    #shutter:active { transform: scale(0.94); }
-
-    /* ── STATUS ── */
-    #status {
-      font-size: 11px;
-      color: var(--text-muted);
-      text-align: center;
-      min-height: 14px;
-    }
-
-    /* ── SAVED CLIPS ── */
-    #saved-bar {
-      display: none;
-      background: var(--surface);
-      border-top: 1px solid var(--border);
-      padding: 8px 16px;
-      gap: 8px;
-      flex-direction: column;
-      flex-shrink: 0;
-    }
-    #saved-bar.show { display: flex; }
-
-    .saved-label {
-      font-size: 10px;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-    }
-
-    #clip-list {
-      display: flex;
-      gap: 8px;
-      overflow-x: auto;
-      padding-bottom: 2px;
-    }
-
-    .clip-item {
-      flex-shrink: 0;
-      width: 80px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .clip-box {
-      width: 80px; height: 52px;
-      border-radius: 8px;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 22px;
-      cursor: pointer;
-      position: relative;
-      transition: border-color 0.15s;
-    }
-    .clip-box:active { border-color: var(--orange); }
-
-    .clip-dl {
-      background: var(--orange);
-      color: #000;
-      border: none;
-      border-radius: 6px;
-      font-size: 10px;
-      font-weight: 700;
-      padding: 3px 0;
-      cursor: pointer;
-      width: 100%;
-      letter-spacing: 0.3px;
-    }
-    .clip-dl:active { opacity: 0.8; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .proc-text { color: var(--text); font-size: 14px; font-weight: 500; }
   </style>
 </head>
 <body>
 
+<!-- iOS native camera inputs -->
+<input type="file" id="file-photo" accept="image/*" capture="environment">
+<input type="file" id="file-video" accept="video/*" capture="environment">
+
 <div id="app">
 
-  <!-- TOP BAR -->
   <div id="topbar">
-    <div>
-      <div class="app-name">OrientCam</div>
-      <div class="app-tagline">No-tilt camera</div>
+    <div class="brand">
+      <div class="brand-name">OrientCam <span class="brand-ver">v1.0</span></div>
+      <div class="brand-sub">No-tilt camera · iPhone Edition</div>
     </div>
-    <div id="mode-toggle">
-      <button class="mode-btn active" onclick="setMode('video')">Video</button>
-      <button class="mode-btn" onclick="setMode('photo')">Photo</button>
+    <div id="mode-tabs">
+      <button class="tab active" onclick="setMode('photo')">Photo</button>
+      <button class="tab" onclick="setMode('video')">Video</button>
     </div>
   </div>
 
-  <!-- VIEWFINDER -->
-  <div id="viewfinder-wrap">
-
-    <!-- Permission screen -->
+  <div id="viewfinder">
     <div id="perm-screen">
       <div class="perm-icon">📷</div>
       <div class="perm-title">OrientCam</div>
-      <p class="perm-sub">Shoot landscape video while holding your phone in portrait. No tilting needed — the app rotates for you.</p>
+      <div class="perm-ver">v1.0 — iPhone Edition</div>
+      <p class="perm-sub">Shoot landscape photos and videos while holding your iPhone in portrait. No tilting needed.</p>
+      <div class="perm-note">
+        <strong>Photo:</strong> Live rotated preview → rotated JPG saved<br>
+        <strong>Video:</strong> Opens iPhone native camera → brings back → save
+      </div>
       <button id="perm-btn" onclick="startCamera()">Enable Camera</button>
     </div>
 
-    <video id="preview" autoplay muted playsinline></video>
+    <video id="preview" autoplay muted playsinline webkit-playsinline></video>
     <canvas id="grid-canvas"></canvas>
     <div id="orient-badge">Hold portrait → Output: Landscape</div>
-    <div id="rec-badge">
-      <div class="rec-dot"></div>
-      <span id="rec-time">00:00</span>
-    </div>
-    <img id="snap-thumb" alt="Last photo">
-  </div>
+    <div id="ios-note">Live preview · output will be rotated on save</div>
 
-  <!-- SAVED CLIPS -->
-  <div id="saved-bar">
-    <span class="saved-label">Saved Clips</span>
-    <div id="clip-list"></div>
-  </div>
-
-  <!-- CONTROLS -->
-  <div id="controls">
-
-    <!-- Rotation slider -->
-    <div class="ctrl-row">
-      <span class="ctrl-label">Rotate</span>
-      <input type="range" id="rot-slider" min="-180" max="180" step="1" value="90" oninput="onRotate(this.value)">
-      <span class="rot-val" id="rot-val">90°</span>
-    </div>
-
-    <!-- Main buttons -->
-    <div class="btn-row">
-      <button class="icon-btn" id="btn-grid" onclick="toggleGrid()" title="Grid">⊞</button>
-      <button class="icon-btn" id="btn-flip" onclick="flipCamera()" title="Flip camera">🔄</button>
-      <div id="shutter" onclick="shutterPress()">
-        <div class="inner"></div>
+    <div id="result-area">
+      <img id="result-img" alt="Captured photo">
+      <video id="result-video" controls playsinline webkit-playsinline></video>
+      <div id="result-actions">
+        <button class="result-btn btn-retake" onclick="retake()">↩ Retake</button>
+        <button class="result-btn btn-save" onclick="saveResult()">↓ Save / Share</button>
       </div>
-      <button class="icon-btn" id="btn-mirror" onclick="toggleMirror()" title="Mirror">↔</button>
-      <button class="icon-btn" id="btn-zoom" onclick="cycleZoom()" title="Zoom">🔍</button>
     </div>
 
-    <div id="status">Tap Enable Camera to start</div>
+    <div id="processing">
+      <div class="spinner"></div>
+      <div class="proc-text">Applying rotation...</div>
+    </div>
+  </div>
+
+  <div id="rot-section">
+    <div class="rot-header">
+      <span class="rot-title">Output Rotation</span>
+      <span class="rot-value" id="rot-display">90° — Landscape</span>
+    </div>
+    <div class="rot-presets">
+      <button class="preset-btn" onclick="setPreset(0)">0°<br><span style="font-size:9px;opacity:0.6">Normal</span></button>
+      <button class="preset-btn active" onclick="setPreset(90)">90°<br><span style="font-size:9px;opacity:0.6">Landscape</span></button>
+      <button class="preset-btn" onclick="setPreset(-90)">-90°<br><span style="font-size:9px;opacity:0.6">Landscape ↩</span></button>
+      <button class="preset-btn" onclick="setPreset(180)">180°<br><span style="font-size:9px;opacity:0.6">Flip</span></button>
+    </div>
+    <input type="range" id="rot-slider" min="-180" max="180" step="1" value="90" oninput="onRotate(this.value)">
+  </div>
+
+  <div id="controls">
+    <div class="btn-row">
+      <button class="icon-btn" id="btn-grid" onclick="toggleGrid()">⊞</button>
+      <button class="icon-btn" id="btn-flip" onclick="flipCam()">🔄</button>
+      <div id="shutter-btn" onclick="shutterPress()"><div class="inner"></div></div>
+      <button class="icon-btn" id="btn-mirror" onclick="toggleMirror()">↔</button>
+      <button class="icon-btn" onclick="showInfo()">ℹ</button>
+    </div>
+    <div id="status-bar">Tap Enable Camera to begin</div>
   </div>
 
 </div>
 
 <script>
-// ── STATE ──
-let stream = null;
-let recorder = null;
-let chunks = [];
-let isRecording = false;
-let mode = 'video';
-let rotation = 90;
-let facingMode = 'environment';
-let mirrored = false;
-let gridOn = false;
-let recTimerId = null;
-let recSecs = 0;
-let zoomLevel = 1;
-let zoomSteps = [1, 1.5, 2, 3];
-let zoomIdx = 0;
-let savedClips = [];
+// OrientCam v1.0 — iPhone Edition — 09-Apr-2026
+const APP_VERSION = '1.0';
 
-const preview = document.getElementById('preview');
-const shutter = document.getElementById('shutter');
-const recBadge = document.getElementById('rec-badge');
-const recTimeEl = document.getElementById('rec-time');
+let stream = null, mode = 'photo', rotation = 90;
+let facingMode = 'environment', mirrored = false, gridOn = false;
+let currentBlob = null, currentType = null;
+
+const preview     = document.getElementById('preview');
+const gridCanvas  = document.getElementById('grid-canvas');
 const orientBadge = document.getElementById('orient-badge');
-const statusEl = document.getElementById('status');
-const gridCanvas = document.getElementById('grid-canvas');
-const snapThumb = document.getElementById('snap-thumb');
-const savedBar = document.getElementById('saved-bar');
-const clipList = document.getElementById('clip-list');
-const permScreen = document.getElementById('perm-screen');
+const statusBar   = document.getElementById('status-bar');
+const rotDisplay  = document.getElementById('rot-display');
+const rotSlider   = document.getElementById('rot-slider');
+const resultArea  = document.getElementById('result-area');
+const resultImg   = document.getElementById('result-img');
+const resultVid   = document.getElementById('result-video');
+const processing  = document.getElementById('processing');
+const shutterBtn  = document.getElementById('shutter-btn');
+const permScreen  = document.getElementById('perm-screen');
+const filePhoto   = document.getElementById('file-photo');
+const fileVideo   = document.getElementById('file-video');
 const photoCanvas = document.createElement('canvas');
 
-// ── CAMERA ──
 async function startCamera() {
   try {
-    setStatus('Starting camera...');
+    setStatus('Requesting camera...');
     if (stream) stream.getTracks().forEach(t => t.stop());
     stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
-      audio: true
+      audio: false
     });
     preview.srcObject = stream;
     await preview.play();
     permScreen.style.display = 'none';
     applyTransform();
-    setStatus(mode === 'video' ? 'Ready — press circle to record' : 'Ready — press circle to snap');
     drawGrid();
-  } catch(e) {
-    setStatus('Camera error: ' + e.message);
-  }
+    setStatus(mode === 'photo' ? 'Tap circle to capture photo' : 'Tap circle to open iPhone camera');
+  } catch(e) { setStatus('Camera error: ' + e.message); }
 }
 
 function applyTransform() {
-  const wrap = document.getElementById('viewfinder-wrap');
-  const ww = wrap.clientWidth;
-  const wh = wrap.clientHeight;
-  const absR = Math.abs(rotation % 360);
-  const isTransposed = (absR === 90 || absR === 270);
-  let scale = 1;
-  if (isTransposed) {
-    scale = Math.min(ww / wh, wh / ww);
-    scale = Math.max(scale, 0.5);
-  }
+  const wrap = document.getElementById('viewfinder');
+  const ww = wrap.clientWidth || 375;
+  const wh = wrap.clientHeight || 500;
+  const absR = Math.abs(((rotation % 360) + 360) % 360);
+  const transposed = (absR === 90 || absR === 270);
+  const scale = transposed ? Math.min(ww/wh, wh/ww) * 0.95 : 1;
   const mx = mirrored ? -1 : 1;
   preview.style.transform = `scaleX(${mx}) rotate(${rotation}deg) scale(${scale})`;
   updateBadge();
 }
 
 function updateBadge() {
-  const r = ((rotation % 360) + 360) % 360;
-  let label;
-  if (r === 90 || r === 270) label = 'Hold portrait → Output: Landscape';
-  else if (r === 180) label = 'Hold portrait → Output: Upside-down';
-  else if (r === 0) label = 'Normal orientation';
-  else label = `Custom rotation: ${rotation}°`;
+  const n = ((rotation % 360) + 360) % 360;
+  let label, display;
+  if      (n === 0)   { label = 'Normal orientation';               display = '0° — Normal'; }
+  else if (n === 90)  { label = 'Hold portrait → Output: Landscape ➡'; display = '90° — Landscape'; }
+  else if (n === 270) { label = 'Hold portrait → Output: Landscape ⬅'; display = '-90° — Landscape ↩'; }
+  else if (n === 180) { label = 'Hold portrait → Output: Upside-down'; display = '180° — Flipped'; }
+  else                { label = `Custom rotation: ${rotation}°`;    display = rotation + '° — Custom'; }
   orientBadge.textContent = label;
+  rotDisplay.textContent  = display;
 }
 
 function onRotate(val) {
   rotation = parseInt(val);
-  document.getElementById('rot-val').textContent = val + '°';
+  updatePresets();
   applyTransform();
 }
 
-// ── SHUTTER ──
+function setPreset(deg) {
+  rotation = deg;
+  rotSlider.value = deg;
+  updatePresets();
+  applyTransform();
+}
+
+function updatePresets() {
+  const vals = [0, 90, -90, 180];
+  document.querySelectorAll('.preset-btn').forEach((b, i) => {
+    b.classList.toggle('active', vals[i] === rotation);
+  });
+}
+
 function shutterPress() {
-  if (!stream) { setStatus('Start camera first'); return; }
-  mode === 'video' ? (isRecording ? stopRec() : startRec()) : takePhoto();
+  if (!stream && mode === 'photo') { startCamera(); return; }
+  mode === 'photo' ? capturePhoto() : captureVideo();
 }
 
-function startRec() {
-  chunks = [];
-  let mime = 'video/webm;codecs=vp9';
-  if (!MediaRecorder.isTypeSupported(mime)) mime = 'video/webm';
-  recorder = new MediaRecorder(stream, { mimeType: mime });
-  recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-  recorder.onstop = saveClip;
-  recorder.start(200);
-  isRecording = true;
-  shutter.classList.add('rec');
-  recBadge.classList.add('show');
-  recSecs = 0;
-  recTimerId = setInterval(() => {
-    recSecs++;
-    const m = String(Math.floor(recSecs / 60)).padStart(2, '0');
-    const s = String(recSecs % 60).padStart(2, '0');
-    recTimeEl.textContent = m + ':' + s;
-  }, 1000);
-  setStatus('Recording... tap circle to stop');
-}
-
-function stopRec() {
-  if (recorder && recorder.state !== 'inactive') recorder.stop();
-  isRecording = false;
-  clearInterval(recTimerId);
-  shutter.classList.remove('rec');
-  recBadge.classList.remove('show');
-  setStatus('Clip saved below');
-}
-
-function saveClip() {
-  const blob = new Blob(chunks, { type: 'video/webm' });
-  const url = URL.createObjectURL(blob);
-  const n = savedClips.length + 1;
-  savedClips.push({ url, n });
-
-  const item = document.createElement('div');
-  item.className = 'clip-item';
-  item.innerHTML = `
-    <div class="clip-box" onclick="playClip('${url}')">🎬</div>
-    <button class="clip-dl" onclick="dlClip('${url}', ${n})">↓ Clip ${n}</button>
-  `;
-  clipList.appendChild(item);
-  savedBar.classList.add('show');
-}
-
-function playClip(url) {
-  window.open(url, '_blank');
-}
-
-function dlClip(url, n) {
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'orientcam_clip_' + n + '.webm';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-}
-
-// ── PHOTO ──
-function takePhoto() {
-  const vw = preview.videoWidth || 640;
-  const vh = preview.videoHeight || 480;
-  const absR = Math.abs(rotation % 360);
+function capturePhoto() {
+  const vw = preview.videoWidth || 1280;
+  const vh = preview.videoHeight || 720;
+  const absR = Math.abs(((rotation % 360) + 360) % 360);
   const transposed = (absR === 90 || absR === 270);
-  photoCanvas.width = transposed ? vh : vw;
+  photoCanvas.width  = transposed ? vh : vw;
   photoCanvas.height = transposed ? vw : vh;
   const ctx = photoCanvas.getContext('2d');
   ctx.save();
   ctx.translate(photoCanvas.width / 2, photoCanvas.height / 2);
   ctx.rotate(rotation * Math.PI / 180);
   if (mirrored) ctx.scale(-1, 1);
-  ctx.drawImage(preview, -vw / 2, -vh / 2, vw, vh);
+  ctx.drawImage(preview, -vw/2, -vh/2, vw, vh);
   ctx.restore();
-  const dataUrl = photoCanvas.toDataURL('image/jpeg', 0.93);
-  snapThumb.src = dataUrl;
-  snapThumb.style.display = 'block';
-  snapThumb.onclick = () => {
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = 'orientcam_photo_' + Date.now() + '.jpg';
-    a.click();
-  };
-  setStatus('Photo captured — tap thumbnail to download');
+  photoCanvas.toBlob(blob => {
+    currentBlob = blob; currentType = 'photo';
+    resultImg.src = URL.createObjectURL(blob);
+    resultImg.classList.add('show');
+    resultVid.classList.remove('show');
+    resultArea.classList.add('show');
+    setStatus('Photo ready — save or retake');
+  }, 'image/jpeg', 0.93);
 }
 
-// ── CONTROLS ──
+function captureVideo() { fileVideo.click(); }
+
+fileVideo.addEventListener('change', function() {
+  const file = this.files[0];
+  if (!file) return;
+  processing.classList.add('show');
+  setStatus('Loading video...');
+  setTimeout(() => {
+    currentBlob = file; currentType = 'video';
+    resultVid.src = URL.createObjectURL(file);
+    resultVid.classList.add('show');
+    resultImg.classList.remove('show');
+    resultArea.classList.add('show');
+    processing.classList.remove('show');
+    setStatus('Video ready — save to Files');
+  }, 500);
+  this.value = '';
+});
+
+filePhoto.addEventListener('change', function() {
+  const file = this.files[0];
+  if (!file) return;
+  processing.classList.add('show');
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      const vw = img.width, vh = img.height;
+      const absR = Math.abs(((rotation % 360) + 360) % 360);
+      const transposed = (absR === 90 || absR === 270);
+      photoCanvas.width  = transposed ? vh : vw;
+      photoCanvas.height = transposed ? vw : vh;
+      const ctx = photoCanvas.getContext('2d');
+      ctx.save();
+      ctx.translate(photoCanvas.width/2, photoCanvas.height/2);
+      ctx.rotate(rotation * Math.PI / 180);
+      if (mirrored) ctx.scale(-1, 1);
+      ctx.drawImage(img, -vw/2, -vh/2, vw, vh);
+      ctx.restore();
+      photoCanvas.toBlob(blob => {
+        currentBlob = blob; currentType = 'photo';
+        resultImg.src = URL.createObjectURL(blob);
+        resultImg.classList.add('show');
+        resultVid.classList.remove('show');
+        resultArea.classList.add('show');
+        processing.classList.remove('show');
+        setStatus('Rotated photo ready — save or share');
+      }, 'image/jpeg', 0.93);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+  this.value = '';
+});
+
+function saveResult() {
+  if (!currentBlob) return;
+  const ext  = currentType === 'photo' ? 'jpg' : 'mp4';
+  const name = `orientcam_v${APP_VERSION}_${Date.now()}.${ext}`;
+  const url  = URL.createObjectURL(currentBlob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setStatus('Saved! Check Downloads or Files app.');
+}
+
+function retake() {
+  resultArea.classList.remove('show');
+  resultImg.classList.remove('show');
+  resultVid.classList.remove('show');
+  resultImg.src = ''; resultVid.src = '';
+  currentBlob = null;
+  setStatus(mode === 'photo' ? 'Tap circle to capture photo' : 'Tap circle to open iPhone camera');
+}
+
 function setMode(m) {
   mode = m;
-  document.querySelectorAll('.mode-btn').forEach((b, i) => {
-    b.classList.toggle('active', (m === 'video' && i === 0) || (m === 'photo' && i === 1));
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    t.classList.toggle('active', (m === 'photo' && i === 0) || (m === 'video' && i === 1));
   });
-  setStatus(m === 'video' ? 'Video mode — tap circle to record' : 'Photo mode — tap circle to snap');
+  shutterBtn.classList.toggle('video-mode', m === 'video');
+  setStatus(m === 'photo' ? 'Tap circle to capture photo' : 'Tap circle — opens iPhone camera for video');
 }
 
-function flipCamera() {
+async function flipCam() {
   facingMode = facingMode === 'environment' ? 'user' : 'environment';
-  if (stream) startCamera();
+  if (stream) { stream.getTracks().forEach(t => t.stop()); await startCamera(); }
+  setStatus('Camera flipped');
 }
 
 function toggleMirror() {
@@ -686,51 +618,28 @@ function toggleGrid() {
 }
 
 function drawGrid() {
-  const wrap = document.getElementById('viewfinder-wrap');
-  gridCanvas.width = wrap.clientWidth;
+  const wrap = document.getElementById('viewfinder');
+  gridCanvas.width  = wrap.clientWidth;
   gridCanvas.height = wrap.clientHeight;
   const ctx = gridCanvas.getContext('2d');
   ctx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.28)';
   ctx.lineWidth = 0.8;
   for (let i = 1; i < 3; i++) {
-    ctx.beginPath();
-    ctx.moveTo(gridCanvas.width * i / 3, 0);
-    ctx.lineTo(gridCanvas.width * i / 3, gridCanvas.height);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0, gridCanvas.height * i / 3);
-    ctx.lineTo(gridCanvas.width, gridCanvas.height * i / 3);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(gridCanvas.width * i/3, 0);
+    ctx.lineTo(gridCanvas.width * i/3, gridCanvas.height); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, gridCanvas.height * i/3);
+    ctx.lineTo(gridCanvas.width, gridCanvas.height * i/3); ctx.stroke();
   }
 }
 
-function cycleZoom() {
-  zoomIdx = (zoomIdx + 1) % zoomSteps.length;
-  zoomLevel = zoomSteps[zoomIdx];
-  const btn = document.getElementById('btn-zoom');
-  btn.textContent = zoomLevel + 'x';
-  btn.classList.toggle('on', zoomLevel > 1);
-  try {
-    const track = stream && stream.getVideoTracks()[0];
-    if (track && track.applyConstraints) {
-      track.applyConstraints({ advanced: [{ zoom: zoomLevel }] });
-    }
-  } catch(e) {}
-  setStatus('Zoom: ' + zoomLevel + 'x');
+function showInfo() {
+  alert(`OrientCam v${APP_VERSION} — iPhone Edition\n09-Apr-2026\n\nPhoto: Live rotated preview → saves rotated JPG\nVideo: Opens iPhone native camera → save to Files\n\nRotation 90° = shoot landscape holding phone portrait.\n\nTip: In Safari → Share → Add to Home Screen for fullscreen.`);
 }
 
-function setStatus(msg) {
-  statusEl.textContent = msg;
-}
+function setStatus(msg) { statusBar.textContent = msg; }
+window.addEventListener('resize', () => { applyTransform(); if (gridOn) drawGrid(); });
 
-// ── RESIZE ──
-window.addEventListener('resize', () => {
-  applyTransform();
-  if (gridOn) drawGrid();
-});
-
-// ── SERVICE WORKER ──
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
