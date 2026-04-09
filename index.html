@@ -3,15 +3,16 @@
 <head>
   <!--
     OrientCam — iPhone Edition
-    Version : 1.3
+    Version : 1.4
     Date    : 09-Apr-2026
     Author  : Elango / EIL
-    Changes : v1.3 — Near-transparent voice sheet, compact chips,
-              instant voice via interimResults + en-US engine
+    Changes : v1.4 — Audio feedback for every command
+              Shutter click, record beep, stop beep, rotation tick,
+              mode swoosh, flip pop — all via Web Audio API (no files needed)
   -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>OrientCam v1.3</title>
+  <title>OrientCam v1.4</title>
   <meta name="theme-color" content="#0a0a0a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -20,7 +21,6 @@
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
       --orange: #ffa500;
       --orange-dim: rgba(255,165,0,0.15);
@@ -33,7 +33,6 @@
       --red: #ff3b30;
       --green: #30d158;
     }
-
     html, body {
       height: 100%; overflow: hidden;
       background: var(--bg);
@@ -42,7 +41,6 @@
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
     }
-
     #app {
       display: flex; flex-direction: column;
       height: 100vh; height: -webkit-fill-available;
@@ -51,8 +49,7 @@
 
     /* TOP BAR */
     #topbar {
-      display: flex; align-items: center;
-      justify-content: space-between;
+      display: flex; align-items: center; justify-content: space-between;
       padding: 12px 16px;
       padding-top: max(env(safe-area-inset-top), 12px);
       background: var(--surface);
@@ -60,202 +57,87 @@
       flex-shrink: 0;
     }
     .brand { display: flex; flex-direction: column; gap: 1px; }
-    .brand-name {
-      font-size: 19px; font-weight: 700;
-      color: var(--orange); letter-spacing: -0.5px;
-      display: flex; align-items: baseline; gap: 6px;
-    }
+    .brand-name { font-size: 19px; font-weight: 700; color: var(--orange); letter-spacing: -0.5px; display: flex; align-items: baseline; gap: 6px; }
     .brand-ver { font-size: 10px; font-weight: 500; color: var(--orange); opacity: 0.6; }
     .brand-sub { font-size: 10px; color: var(--muted); }
-
-    #mode-tabs {
-      display: flex; background: var(--surface2);
-      border-radius: 22px; padding: 3px;
-      border: 0.5px solid var(--border);
-    }
-    .tab {
-      padding: 6px 16px; border-radius: 18px;
-      font-size: 13px; font-weight: 500;
-      color: var(--muted); cursor: pointer;
-      transition: all 0.2s; border: none; background: transparent;
-    }
+    #mode-tabs { display: flex; background: var(--surface2); border-radius: 22px; padding: 3px; border: 0.5px solid var(--border); }
+    .tab { padding: 6px 16px; border-radius: 18px; font-size: 13px; font-weight: 500; color: var(--muted); cursor: pointer; transition: all 0.2s; border: none; background: transparent; }
     .tab.active { background: var(--orange); color: #000; font-weight: 700; }
 
     /* VIEWFINDER */
     #viewfinder {
-      flex: 1; position: relative;
-      background: #000; overflow: hidden;
-      display: flex; align-items: center;
-      justify-content: center; min-height: 0;
+      flex: 1; position: relative; background: #000; overflow: hidden;
+      display: flex; align-items: center; justify-content: center; min-height: 0;
     }
-
-    #preview {
-      width: 100%; height: 100%;
-      object-fit: cover; display: block;
-      transition: transform 0.4s cubic-bezier(0.4,0,0.2,1);
-    }
-
+    #preview { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.4s cubic-bezier(0.4,0,0.2,1); }
     #file-photo, #file-video { display: none; }
-
-    #grid-canvas {
-      position: absolute; inset: 0;
-      pointer-events: none; z-index: 3;
-      opacity: 0; transition: opacity 0.3s;
-    }
+    #grid-canvas { position: absolute; inset: 0; pointer-events: none; z-index: 3; opacity: 0; transition: opacity 0.3s; }
     #grid-canvas.show { opacity: 1; }
 
-    /* ORIENT BADGE — top center */
     #orient-badge {
-      position: absolute; top: 10px;
-      left: 50%; transform: translateX(-50%);
-      background: rgba(255,165,0,0.85);
-      color: #000; font-size: 11px; font-weight: 600;
-      padding: 4px 14px; border-radius: 20px;
-      white-space: nowrap; z-index: 5;
+      position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+      background: rgba(255,165,0,0.85); color: #000; font-size: 11px; font-weight: 600;
+      padding: 4px 14px; border-radius: 20px; white-space: nowrap; z-index: 5;
     }
 
-    /* HEARD BADGE — below orient badge */
     #heard-badge {
-      position: absolute; top: 40px;
-      left: 50%; transform: translateX(-50%);
-      background: rgba(48,209,88,0.9);
-      color: #000; font-size: 12px; font-weight: 700;
-      padding: 4px 16px; border-radius: 20px;
-      white-space: nowrap; z-index: 6;
-      opacity: 0; pointer-events: none;
-      transition: opacity 0.15s;
+      position: absolute; top: 40px; left: 50%; transform: translateX(-50%);
+      background: rgba(48,209,88,0.92); color: #000; font-size: 12px; font-weight: 700;
+      padding: 4px 16px; border-radius: 20px; white-space: nowrap; z-index: 6;
+      opacity: 0; pointer-events: none; transition: opacity 0.15s;
     }
     #heard-badge.show { opacity: 1; }
 
-    /* ═══════════════════════════════════════════════
-       VOICE SHEET v1.3
-       - Near transparent: camera fully visible
-       - Single slim row of compact chips
-       - Slides in from bottom, hugs the edge
-    ════════════════════════════════════════════════ */
+    /* VOICE SHEET — transparent */
     #voice-sheet {
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      /* Very transparent — only 15% black so camera shows through */
-      background: rgba(0, 0, 0, 0.15);
-      backdrop-filter: blur(2px);
-      -webkit-backdrop-filter: blur(2px);
+      position: absolute; bottom: 0; left: 0; right: 0;
+      background: rgba(0,0,0,0.15);
+      backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
       border-top: 0.5px solid rgba(255,255,255,0.12);
-      padding: 8px 12px 12px;
-      z-index: 8;
+      padding: 8px 12px 12px; z-index: 8;
       transform: translateY(100%);
       transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
     }
     #voice-sheet.open { transform: translateY(0); }
-
-    /* Mic row — tiny */
-    .sheet-mic-row {
-      display: flex; align-items: center;
-      justify-content: space-between;
-      margin-bottom: 8px;
-    }
-    .mic-live {
-      display: flex; align-items: center; gap: 6px;
-    }
-    .mic-dot {
-      width: 6px; height: 6px; border-radius: 50%;
-      background: var(--green);
-      animation: mpulse 0.8s ease-in-out infinite;
-    }
+    .sheet-mic-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .mic-live { display: flex; align-items: center; gap: 6px; }
+    .mic-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: mpulse 0.8s ease-in-out infinite; }
     @keyframes mpulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
     .mic-text { font-size: 11px; font-weight: 600; color: var(--green); }
-
-    .sheet-stop {
-      background: rgba(255,255,255,0.08);
-      border: 0.5px solid rgba(255,255,255,0.15);
-      color: rgba(255,255,255,0.6);
-      font-size: 11px; font-weight: 500;
-      padding: 4px 10px; border-radius: 10px; cursor: pointer;
-    }
-
-    /* Single row of chips — compact, horizontal scroll if needed */
-    .chip-row {
-      display: flex; gap: 6px;
-      overflow-x: auto; padding-bottom: 2px;
-      scrollbar-width: none;
-    }
+    .sheet-stop { background: rgba(255,255,255,0.08); border: 0.5px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.6); font-size: 11px; font-weight: 500; padding: 4px 10px; border-radius: 10px; cursor: pointer; }
+    .chip-row { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
     .chip-row::-webkit-scrollbar { display: none; }
-
-    /* Each chip — small and compact */
+    .chip-sep { width: 0.5px; background: rgba(255,255,255,0.15); margin: 0 2px; flex-shrink: 0; }
     .cmd-chip {
-      flex-shrink: 0;
-      background: rgba(255,255,255,0.10);
-      border: 0.5px solid rgba(255,255,255,0.20);
-      border-radius: 16px;
-      padding: 5px 11px;
-      display: flex; align-items: center; gap: 4px;
-      transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
-      overflow: hidden;
-      max-width: 160px;
-      cursor: default;
+      flex-shrink: 0; background: rgba(255,255,255,0.10);
+      border: 0.5px solid rgba(255,255,255,0.20); border-radius: 16px;
+      padding: 5px 11px; display: flex; align-items: center; gap: 4px;
+      transition: all 0.3s cubic-bezier(0.4,0,0.2,1); overflow: hidden;
+      max-width: 160px; cursor: default;
     }
-    .chip-word {
-      font-size: 12px; font-weight: 600;
-      color: rgba(255,255,255,0.9);
-      white-space: nowrap;
-    }
-
-    /* Flash green when heard */
-    .cmd-chip.heard {
-      background: rgba(48,209,88,0.3);
-      border-color: rgba(48,209,88,0.7);
-    }
+    .chip-word { font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.9); white-space: nowrap; }
+    .cmd-chip.heard { background: rgba(48,209,88,0.3); border-color: rgba(48,209,88,0.7); }
     .cmd-chip.heard .chip-word { color: var(--green); }
+    .cmd-chip.used { opacity: 0; max-width: 0; padding-left: 0; padding-right: 0; border-width: 0; pointer-events: none; }
 
-    /* Collapse away after use */
-    .cmd-chip.used {
-      opacity: 0;
-      max-width: 0;
-      padding-left: 0; padding-right: 0;
-      border-width: 0;
-      pointer-events: none;
-    }
-
-    /* RESULT AREA */
-    #result-area {
-      display: none; position: absolute; inset: 0;
-      background: #000; z-index: 10;
-      flex-direction: column;
-      align-items: center; justify-content: center;
-    }
+    /* RESULT */
+    #result-area { display: none; position: absolute; inset: 0; background: #000; z-index: 10; flex-direction: column; align-items: center; justify-content: center; }
     #result-area.show { display: flex; }
     #result-img { max-width: 100%; max-height: 72%; object-fit: contain; display: none; }
     #result-img.show { display: block; }
     #result-video { max-width: 100%; max-height: 72%; display: none; border-radius: 6px; }
     #result-video.show { display: block; }
     #result-label { color: var(--muted); font-size: 11px; margin-top: 8px; }
-    #result-actions {
-      position: absolute; bottom: 0; left: 0; right: 0;
-      padding: 16px; display: flex; gap: 10px;
-      background: rgba(0,0,0,0.75);
-    }
-    .result-btn {
-      flex: 1; padding: 13px; border-radius: 14px;
-      border: none; font-size: 14px; font-weight: 600; cursor: pointer;
-    }
+    #result-actions { position: absolute; bottom: 0; left: 0; right: 0; padding: 16px; display: flex; gap: 10px; background: rgba(0,0,0,0.75); }
+    .result-btn { flex: 1; padding: 13px; border-radius: 14px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; }
     .result-btn:active { opacity: 0.75; }
     .btn-save { background: var(--orange); color: #000; }
     .btn-retake { background: var(--surface2); color: var(--text); border: 0.5px solid var(--border); }
 
     /* PROCESSING */
-    #processing {
-      display: none; position: absolute; inset: 0;
-      background: rgba(0,0,0,0.88); z-index: 20;
-      flex-direction: column; align-items: center;
-      justify-content: center; gap: 14px;
-    }
+    #processing { display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.88); z-index: 20; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
     #processing.show { display: flex; }
-    .spinner {
-      width: 48px; height: 48px;
-      border: 3px solid rgba(255,165,0,0.2);
-      border-top-color: var(--orange);
-      border-radius: 50%; animation: spin 0.8s linear infinite;
-    }
+    .spinner { width: 48px; height: 48px; border: 3px solid rgba(255,165,0,0.2); border-top-color: var(--orange); border-radius: 50%; animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .proc-title { color: var(--text); font-size: 15px; font-weight: 600; }
     .proc-sub { color: var(--muted); font-size: 12px; text-align: center; max-width: 240px; line-height: 1.5; }
@@ -263,78 +145,33 @@
     #proc-bar { height: 100%; background: var(--orange); border-radius: 2px; width: 0%; transition: width 0.3s; }
 
     /* ROTATION */
-    #rot-section {
-      background: var(--surface);
-      border-top: 0.5px solid var(--border);
-      padding: 12px 16px 8px; flex-shrink: 0;
-    }
+    #rot-section { background: var(--surface); border-top: 0.5px solid var(--border); padding: 12px 16px 8px; flex-shrink: 0; }
     .rot-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
     .rot-title { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; }
     .rot-value { font-size: 13px; font-weight: 600; color: var(--orange); }
     .rot-presets { display: flex; gap: 8px; margin-bottom: 10px; }
-    .preset-btn {
-      flex: 1; padding: 7px 0; border-radius: 10px;
-      border: 0.5px solid var(--border); background: var(--surface2);
-      color: var(--muted); font-size: 12px; font-weight: 500;
-      cursor: pointer; transition: all 0.15s; line-height: 1.4;
-    }
+    .preset-btn { flex: 1; padding: 7px 0; border-radius: 10px; border: 0.5px solid var(--border); background: var(--surface2); color: var(--muted); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; line-height: 1.4; }
     .preset-btn.active { border-color: var(--orange); background: var(--orange-dim); color: var(--orange); }
     .preset-btn:active { transform: scale(0.96); }
-    input[type=range] {
-      width: 100%; height: 4px; border-radius: 2px;
-      background: var(--surface2); outline: none; border: none;
-      cursor: pointer; -webkit-appearance: none; accent-color: var(--orange);
-    }
-    input[type=range]::-webkit-slider-thumb {
-      -webkit-appearance: none; width: 22px; height: 22px;
-      border-radius: 50%; background: var(--orange); cursor: pointer;
-      box-shadow: 0 0 0 3px rgba(255,165,0,0.2);
-    }
+    input[type=range] { width: 100%; height: 4px; border-radius: 2px; background: var(--surface2); outline: none; border: none; cursor: pointer; -webkit-appearance: none; accent-color: var(--orange); }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: var(--orange); cursor: pointer; box-shadow: 0 0 0 3px rgba(255,165,0,0.2); }
 
     /* CONTROLS */
-    #controls {
-      background: var(--surface);
-      border-top: 0.5px solid var(--border);
-      padding: 14px 20px;
-      padding-bottom: max(env(safe-area-inset-bottom), 14px);
-      flex-shrink: 0;
-    }
+    #controls { background: var(--surface); border-top: 0.5px solid var(--border); padding: 14px 20px; padding-bottom: max(env(safe-area-inset-bottom), 14px); flex-shrink: 0; }
     .btn-row { display: flex; align-items: center; justify-content: space-evenly; margin-bottom: 10px; }
-    .icon-btn {
-      width: 46px; height: 46px; border-radius: 50%;
-      border: 0.5px solid var(--border); background: var(--surface2);
-      color: var(--text); font-size: 19px; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: all 0.15s;
-    }
+    .icon-btn { width: 46px; height: 46px; border-radius: 50%; border: 0.5px solid var(--border); background: var(--surface2); color: var(--text); font-size: 19px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
     .icon-btn:active { transform: scale(0.9); }
     .icon-btn.on { border-color: var(--orange); background: var(--orange-dim); }
-    .icon-btn.voice-on {
-      border-color: var(--green);
-      background: rgba(48,209,88,0.15);
-      animation: vring 1.5s ease-in-out infinite;
-    }
-    @keyframes vring {
-      0%,100% { box-shadow: 0 0 0 0 rgba(48,209,88,0.5); }
-      50%      { box-shadow: 0 0 0 8px rgba(48,209,88,0); }
-    }
-    #shutter-btn {
-      width: 74px; height: 74px; border-radius: 50%;
-      border: 3px solid #fff; background: transparent;
-      cursor: pointer; display: flex; align-items: center;
-      justify-content: center; transition: transform 0.15s; flex-shrink: 0;
-    }
+    .icon-btn.voice-on { border-color: var(--green); background: rgba(48,209,88,0.15); animation: vring 1.5s ease-in-out infinite; }
+    @keyframes vring { 0%,100%{box-shadow:0 0 0 0 rgba(48,209,88,0.5)} 50%{box-shadow:0 0 0 8px rgba(48,209,88,0)} }
+    #shutter-btn { width: 74px; height: 74px; border-radius: 50%; border: 3px solid #fff; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.15s; flex-shrink: 0; }
     #shutter-btn:active { transform: scale(0.93); }
     #shutter-btn .inner { width: 58px; height: 58px; border-radius: 50%; background: #fff; transition: all 0.2s; }
     #shutter-btn.video-mode .inner { background: var(--red); }
     #status-bar { font-size: 11px; color: var(--muted); text-align: center; min-height: 15px; }
 
     /* PERMISSION */
-    #perm-screen {
-      position: absolute; inset: 0; display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      gap: 16px; background: #000; z-index: 40; padding: 40px 28px; text-align: center;
-    }
+    #perm-screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: #000; z-index: 40; padding: 40px 28px; text-align: center; }
     .perm-icon { width: 80px; height: 80px; background: var(--surface2); border-radius: 22px; border: 0.5px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 40px; }
     .perm-title { font-size: 22px; font-weight: 700; }
     .perm-ver { font-size: 12px; color: var(--orange); opacity: 0.7; }
@@ -352,12 +189,10 @@
 <input type="file" id="file-video" accept="video/*" capture="environment">
 
 <div id="app">
-
-  <!-- TOP BAR -->
   <div id="topbar">
     <div class="brand">
-      <div class="brand-name">OrientCam <span class="brand-ver">v1.3</span></div>
-      <div class="brand-sub">No-tilt · Voice · iPhone Edition</div>
+      <div class="brand-name">OrientCam <span class="brand-ver">v1.4</span></div>
+      <div class="brand-sub">No-tilt · Voice · Sound · iPhone Edition</div>
     </div>
     <div id="mode-tabs">
       <button class="tab active" onclick="setMode('photo')">Photo</button>
@@ -365,19 +200,17 @@
     </div>
   </div>
 
-  <!-- VIEWFINDER -->
   <div id="viewfinder">
-
     <div id="perm-screen">
       <div class="perm-icon">📷</div>
       <div class="perm-title">OrientCam</div>
-      <div class="perm-ver">v1.3 — iPhone Edition</div>
+      <div class="perm-ver">v1.4 — iPhone Edition</div>
       <p class="perm-sub">Shoot landscape photos and videos without tilting your iPhone.</p>
       <div class="perm-note">
-        <strong>Photo:</strong> Live preview → rotated JPG<br>
-        <strong>Video:</strong> Native camera → rotation applied after<br>
-        <span class="new">✦ v1.3:</span> See-through voice sheet<br>
-        <span class="new">✦ v1.3:</span> Near-instant voice response
+        <strong>Photo:</strong> Live preview → rotated JPG → Files app<br>
+        <strong>Video:</strong> Native camera → rotated → Files app<br>
+        <span class="new">✦ v1.4:</span> Sound for every command<br>
+        <span class="new">✦ Shutter click · Record beep · Stop tone</span>
       </div>
       <button id="perm-btn" onclick="startCamera()">Enable Camera</button>
     </div>
@@ -387,7 +220,7 @@
     <div id="orient-badge">Hold portrait → Output: Landscape</div>
     <div id="heard-badge"></div>
 
-    <!-- ── VOICE SHEET v1.3 — transparent, single row ── -->
+    <!-- VOICE SHEET -->
     <div id="voice-sheet">
       <div class="sheet-mic-row">
         <div class="mic-live">
@@ -396,26 +229,20 @@
         </div>
         <button class="sheet-stop" onclick="stopVoice()">Stop 🎙</button>
       </div>
-      <div class="chip-row" id="chip-row">
-        <!-- Mode chips — disappear after use -->
+      <div class="chip-row">
         <div class="cmd-chip" id="chip-photo"><span class="chip-word">📷 Photo</span></div>
         <div class="cmd-chip" id="chip-video"><span class="chip-word">🎬 Video</span></div>
-        <!-- Separator -->
-        <div style="width:0.5px;background:rgba(255,255,255,0.15);margin:0 2px;flex-shrink:0;"></div>
-        <!-- Capture chips — stay always -->
+        <div class="chip-sep"></div>
         <div class="cmd-chip" id="chip-capture"><span class="chip-word">✦ Capture</span></div>
+        <div class="cmd-chip" id="chip-click"><span class="chip-word">🖱 Click</span></div>
         <div class="cmd-chip" id="chip-record"><span class="chip-word">⏺ Record</span></div>
-        <div class="cmd-chip" id="chip-stop"><span class="chip-word">⏹ Stop</span></div>
-        <!-- Separator -->
-        <div style="width:0.5px;background:rgba(255,255,255,0.15);margin:0 2px;flex-shrink:0;"></div>
-        <!-- Rotation chips — disappear after use -->
+        <div class="cmd-chip" id="chip-stop-rec"><span class="chip-word">⏹ Stop</span></div>
+        <div class="chip-sep"></div>
         <div class="cmd-chip" id="chip-landscape"><span class="chip-word">↔ Landscape</span></div>
         <div class="cmd-chip" id="chip-normal"><span class="chip-word">↕ Normal</span></div>
         <div class="cmd-chip" id="chip-flip"><span class="chip-word">🔃 Flip</span></div>
         <div class="cmd-chip" id="chip-reverse"><span class="chip-word">↩ Reverse</span></div>
-        <!-- Separator -->
-        <div style="width:0.5px;background:rgba(255,255,255,0.15);margin:0 2px;flex-shrink:0;"></div>
-        <!-- Camera chips — stay always -->
+        <div class="chip-sep"></div>
         <div class="cmd-chip" id="chip-front"><span class="chip-word">🤳 Front</span></div>
         <div class="cmd-chip" id="chip-back"><span class="chip-word">📸 Back</span></div>
         <div class="cmd-chip" id="chip-grid"><span class="chip-word">⊞ Grid</span></div>
@@ -423,7 +250,6 @@
       </div>
     </div>
 
-    <!-- Result -->
     <div id="result-area">
       <img id="result-img" alt="Photo">
       <video id="result-video" controls playsinline webkit-playsinline></video>
@@ -434,17 +260,14 @@
       </div>
     </div>
 
-    <!-- Processing -->
     <div id="processing">
       <div class="spinner"></div>
       <div class="proc-title">Rotating video...</div>
       <div class="proc-sub">Applying <span id="proc-deg">90°</span> rotation. Please wait.</div>
       <div id="proc-progress"><div id="proc-bar"></div></div>
     </div>
-
   </div>
 
-  <!-- ROTATION -->
   <div id="rot-section">
     <div class="rot-header">
       <span class="rot-title">Output Rotation</span>
@@ -459,7 +282,6 @@
     <input type="range" id="rot-slider" min="-180" max="180" step="1" value="90" oninput="onRotate(this.value)">
   </div>
 
-  <!-- CONTROLS -->
   <div id="controls">
     <div class="btn-row">
       <button class="icon-btn" id="btn-grid" onclick="toggleGrid()">⊞</button>
@@ -470,23 +292,22 @@
     </div>
     <div id="status-bar">Tap Enable Camera to begin</div>
   </div>
-
 </div>
 
 <script>
-// OrientCam v1.3 — 09-Apr-2026
-// Key change: interimResults=true for instant response, en-US engine, transparent sheet
-const APP_VERSION = '1.3';
+// OrientCam v1.4 — 09-Apr-2026
+// New: Web Audio API sound feedback for every command
+const APP_VERSION = '1.4';
 
 let stream=null, mode='photo', rotation=90;
 let facingMode='environment', mirrored=false, gridOn=false;
 let currentBlob=null, currentType=null;
 let voiceActive=false, recognition=null;
-let heardTimer=null;
-// Debounce: prevent same command firing twice in quick succession
-let lastCmd='', lastCmdTime=0;
+let heardTimer=null, lastCmd='', lastCmdTime=0;
+let audioCtx=null;
 const photoCanvas=document.createElement('canvas');
 
+// Elements
 const preview     = document.getElementById('preview');
 const gridCanvas  = document.getElementById('grid-canvas');
 const orientBadge = document.getElementById('orient-badge');
@@ -507,25 +328,160 @@ const procBar     = document.getElementById('proc-bar');
 const procDeg     = document.getElementById('proc-deg');
 const voiceSheet  = document.getElementById('voice-sheet');
 
+// ════════════════════════════════════════
+// AUDIO ENGINE — Web Audio API
+// All sounds synthesised — no files needed
+// ════════════════════════════════════════
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  // Resume if suspended (iOS requires user gesture first)
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+// Camera shutter click — mechanical snap
+function soundShutter() {
+  try {
+    const ctx = getAudio();
+    const t = ctx.currentTime;
+    // Noise burst for click
+    const buf = ctx.createBuffer(1, ctx.sampleRate * 0.04, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    // High-pass filter to make it crisp
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'highpass'; filter.frequency.value = 1200;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(1.2, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+    src.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+    src.start(t); src.stop(t + 0.05);
+  } catch(e) {}
+}
+
+// Double beep — recording started
+function soundRecordStart() {
+  try {
+    const ctx = getAudio();
+    [0, 0.15].forEach((delay, i) => {
+      const t = ctx.currentTime + delay;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, t);
+      gain.gain.setValueAtTime(0.0, t);
+      gain.gain.linearRampToValueAtTime(0.5, t + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(t); osc.stop(t + 0.13);
+    });
+  } catch(e) {}
+}
+
+// Single descending tone — recording stopped
+function soundRecordStop() {
+  try {
+    const ctx = getAudio();
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(660, t);
+    osc.frequency.exponentialRampToValueAtTime(330, t + 0.25);
+    gain.gain.setValueAtTime(0.5, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t); osc.stop(t + 0.3);
+  } catch(e) {}
+}
+
+// Soft swoosh — mode switch (photo/video)
+function soundSwoosh() {
+  try {
+    const ctx = getAudio();
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(400, t);
+    osc.frequency.exponentialRampToValueAtTime(800, t + 0.1);
+    gain.gain.setValueAtTime(0.3, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t); osc.stop(t + 0.16);
+  } catch(e) {}
+}
+
+// Soft tick — rotation changed
+function soundTick() {
+  try {
+    const ctx = getAudio();
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(1200, t);
+    gain.gain.setValueAtTime(0.25, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t); osc.stop(t + 0.07);
+  } catch(e) {}
+}
+
+// Soft pop — camera flip / mirror / grid
+function soundPop() {
+  try {
+    const ctx = getAudio();
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(600, t);
+    osc.frequency.exponentialRampToValueAtTime(200, t + 0.08);
+    gain.gain.setValueAtTime(0.35, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t); osc.stop(t + 0.11);
+  } catch(e) {}
+}
+
+// Voice recognised confirmation ping
+function soundPing() {
+  try {
+    const ctx = getAudio();
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1000, t);
+    gain.gain.setValueAtTime(0.2, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(t); osc.stop(t + 0.09);
+  } catch(e) {}
+}
+
 // ── CAMERA ──
 async function startCamera() {
   try {
     setStatus('Starting camera...');
     if(stream) stream.getTracks().forEach(t=>t.stop());
     stream = await navigator.mediaDevices.getUserMedia({
-      video:{ facingMode, width:{ideal:1920}, height:{ideal:1080} },
-      audio: false
+      video:{ facingMode, width:{ideal:1920}, height:{ideal:1080} }, audio:false
     });
-    preview.srcObject = stream;
-    await preview.play();
+    preview.srcObject = stream; await preview.play();
     permScreen.style.display = 'none';
     applyTransform(); drawGrid();
     setStatus('Ready — tap 🎙 for voice');
+    // Unlock audio context on first user interaction
+    getAudio();
   } catch(e) { setStatus('Camera error: '+e.message); }
 }
 
 function applyTransform() {
-  const wrap = document.getElementById('viewfinder');
+  const wrap=document.getElementById('viewfinder');
   const ww=wrap.clientWidth||375, wh=wrap.clientHeight||500;
   const absR=Math.abs(((rotation%360)+360)%360);
   const transposed=absR===90||absR===270;
@@ -537,13 +493,12 @@ function applyTransform() {
 function updateBadge() {
   const n=((rotation%360)+360)%360;
   let label,display;
-  if(n===0)   {label='Normal orientation';                   display='0° — Normal';}
+  if(n===0)        {label='Normal orientation';                   display='0° — Normal';}
   else if(n===90)  {label='Hold portrait → Output: Landscape ➡'; display='90° — Landscape';}
   else if(n===270) {label='Hold portrait → Output: Landscape ⬅'; display='-90° — Landscape ↩';}
   else if(n===180) {label='Hold portrait → Output: Upside-down'; display='180° — Flipped';}
-  else             {label=`Custom: ${rotation}°`;             display=rotation+'° — Custom';}
-  orientBadge.textContent=label;
-  rotDisplay.textContent=display;
+  else             {label=`Custom: ${rotation}°`;                 display=rotation+'° — Custom';}
+  orientBadge.textContent=label; rotDisplay.textContent=display;
 }
 
 function onRotate(val){ rotation=parseInt(val); updatePresets(); applyTransform(); }
@@ -561,31 +516,37 @@ function shutterPress(){
 
 // ── PHOTO ──
 function capturePhoto(){
+  soundShutter(); // 🔊 Shutter click
   const vw=preview.videoWidth||1280, vh=preview.videoHeight||720;
   const absR=Math.abs(((rotation%360)+360)%360);
   const transposed=absR===90||absR===270;
-  photoCanvas.width=transposed?vh:vw;
-  photoCanvas.height=transposed?vw:vh;
+  photoCanvas.width=transposed?vh:vw; photoCanvas.height=transposed?vw:vh;
   const ctx=photoCanvas.getContext('2d');
-  ctx.save();
-  ctx.translate(photoCanvas.width/2,photoCanvas.height/2);
-  ctx.rotate(rotation*Math.PI/180);
-  if(mirrored)ctx.scale(-1,1);
-  ctx.drawImage(preview,-vw/2,-vh/2,vw,vh);
-  ctx.restore();
+  ctx.save(); ctx.translate(photoCanvas.width/2,photoCanvas.height/2);
+  ctx.rotate(rotation*Math.PI/180); if(mirrored)ctx.scale(-1,1);
+  ctx.drawImage(preview,-vw/2,-vh/2,vw,vh); ctx.restore();
   photoCanvas.toBlob(blob=>{
     currentBlob=blob; currentType='photo';
     resultImg.src=URL.createObjectURL(blob);
-    resultImg.classList.add('show');
-    resultVid.classList.remove('show');
+    resultImg.classList.add('show'); resultVid.classList.remove('show');
     resultLabel.textContent='Rotated '+rotation+'° — ready to save';
-    resultArea.classList.add('show');
-    setStatus('Photo ready — save or retake');
+    resultArea.classList.add('show'); setStatus('Photo ready — save or retake');
   },'image/jpeg',0.93);
 }
 
 // ── VIDEO ──
-function captureVideo(){ fileVideo.click(); }
+let videoRecording=false;
+
+function captureVideo(){
+  if(!videoRecording){
+    soundRecordStart(); // 🔊 Double beep — started
+    videoRecording=true;
+  } else {
+    soundRecordStop(); // 🔊 Descending tone — stopped
+    videoRecording=false;
+  }
+  fileVideo.click();
+}
 
 fileVideo.addEventListener('change',function(){
   const file=this.files[0]; if(!file)return;
@@ -645,13 +606,13 @@ async function rotateVideoFrames(file){
 function showVideoResult(url,label){
   resultVid.src=url; resultVid.classList.add('show');
   resultImg.classList.remove('show');
-  resultLabel.textContent=label;
-  resultArea.classList.add('show');
+  resultLabel.textContent=label; resultArea.classList.add('show');
   setStatus('Video ready — save or retake');
 }
 
 filePhoto.addEventListener('change',function(){
   const file=this.files[0]; if(!file)return;
+  soundShutter(); // 🔊 Shutter for imported photo too
   processing.classList.add('show');
   const reader=new FileReader();
   reader.onload=e=>{
@@ -660,39 +621,33 @@ filePhoto.addEventListener('change',function(){
       const vw=img.width,vh=img.height;
       const absR=Math.abs(((rotation%360)+360)%360);
       const transposed=absR===90||absR===270;
-      photoCanvas.width=transposed?vh:vw;
-      photoCanvas.height=transposed?vw:vh;
+      photoCanvas.width=transposed?vh:vw; photoCanvas.height=transposed?vw:vh;
       const ctx=photoCanvas.getContext('2d');
-      ctx.save();
-      ctx.translate(photoCanvas.width/2,photoCanvas.height/2);
-      ctx.rotate(rotation*Math.PI/180);
-      if(mirrored)ctx.scale(-1,1);
-      ctx.drawImage(img,-vw/2,-vh/2,vw,vh);
-      ctx.restore();
+      ctx.save(); ctx.translate(photoCanvas.width/2,photoCanvas.height/2);
+      ctx.rotate(rotation*Math.PI/180); if(mirrored)ctx.scale(-1,1);
+      ctx.drawImage(img,-vw/2,-vh/2,vw,vh); ctx.restore();
       photoCanvas.toBlob(blob=>{
         currentBlob=blob; currentType='photo';
         resultImg.src=URL.createObjectURL(blob);
         resultImg.classList.add('show'); resultVid.classList.remove('show');
         resultLabel.textContent='Rotated '+rotation+'° — ready to save';
-        resultArea.classList.add('show');
-        processing.classList.remove('show');
+        resultArea.classList.add('show'); processing.classList.remove('show');
         setStatus('Photo ready — save or retake');
       },'image/jpeg',0.93);
-    };
-    img.src=e.target.result;
-  };
-  reader.readAsDataURL(file); this.value='';
+    }; img.src=e.target.result;
+  }; reader.readAsDataURL(file); this.value='';
 });
 
 // ── SAVE / RETAKE ──
 function saveResult(){
   if(!currentBlob)return;
+  soundPing(); // 🔊 Confirm saved
   const ext=currentType==='photo'?'jpg':'webm';
   const name=`orientcam_v${APP_VERSION}_${rotation}deg_${Date.now()}.${ext}`;
   const a=document.createElement('a');
   a.href=URL.createObjectURL(currentBlob); a.download=name;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  setStatus('Saved! Check Files app.');
+  setStatus('Saved! Check Files app → Downloads');
 }
 
 function retake(){
@@ -704,6 +659,7 @@ function retake(){
 
 // ── CONTROLS ──
 function setMode(m){
+  soundSwoosh(); // 🔊 Swoosh on mode change
   mode=m;
   document.querySelectorAll('.tab').forEach((t,i)=>
     t.classList.toggle('active',(m==='photo'&&i===0)||(m==='video'&&i===1)));
@@ -712,17 +668,20 @@ function setMode(m){
 }
 
 async function flipCam(){
+  soundPop(); // 🔊 Pop on flip
   facingMode=facingMode==='environment'?'user':'environment';
   if(stream){stream.getTracks().forEach(t=>t.stop()); await startCamera();}
 }
 
 function toggleMirror(){
+  soundPop(); // 🔊 Pop on mirror
   mirrored=!mirrored;
   document.getElementById('btn-mirror').classList.toggle('on',mirrored);
   applyTransform();
 }
 
 function toggleGrid(){
+  soundTick(); // 🔊 Tick on grid
   gridOn=!gridOn;
   document.getElementById('btn-grid').classList.toggle('on',gridOn);
   gridCanvas.classList.toggle('show',gridOn);
@@ -736,78 +695,54 @@ function drawGrid(){
   ctx.clearRect(0,0,gridCanvas.width,gridCanvas.height);
   ctx.strokeStyle='rgba(255,255,255,0.28)'; ctx.lineWidth=0.8;
   for(let i=1;i<3;i++){
-    ctx.beginPath(); ctx.moveTo(gridCanvas.width*i/3,0);
-    ctx.lineTo(gridCanvas.width*i/3,gridCanvas.height); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0,gridCanvas.height*i/3);
-    ctx.lineTo(gridCanvas.width,gridCanvas.height*i/3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(gridCanvas.width*i/3,0); ctx.lineTo(gridCanvas.width*i/3,gridCanvas.height); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,gridCanvas.height*i/3); ctx.lineTo(gridCanvas.width,gridCanvas.height*i/3); ctx.stroke();
   }
 }
 
-// ── VOICE — v1.3 KEY CHANGES ──
-// 1. interimResults = true  → fires while still speaking = near instant
-// 2. lang = 'en-US'         → faster Google engine
-// 3. Debounce 800ms         → prevents double firing
-// 4. Match on interim text  → no waiting for final result
-
+// ── VOICE ──
 function toggleVoice(){ voiceActive?stopVoice():startVoice(); }
 
 function startVoice(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){ setStatus('Voice not supported on this device'); return; }
-
-  // Reset chips
+  if(!SR){setStatus('Voice not supported');return;}
   document.querySelectorAll('.cmd-chip').forEach(c=>c.classList.remove('used','heard'));
-  document.querySelectorAll('.cmd-section').forEach(s=>s.style.display='');
-
   recognition=new SR();
   recognition.continuous=true;
-  recognition.interimResults=true;   // KEY: fire immediately, don't wait for silence
-  recognition.lang='en-US';          // KEY: faster engine than en-IN
+  recognition.interimResults=true;
+  recognition.lang='en-US';
   recognition.maxAlternatives=1;
-
   recognition.onstart=()=>{
     voiceActive=true;
     document.getElementById('btn-voice').classList.add('voice-on');
     voiceSheet.classList.add('open');
+    soundPing(); // 🔊 Ping when voice activates
     setStatus('🎙 Listening...');
   };
-
   recognition.onresult=e=>{
-    // Check both interim and final results — whichever comes first
-    for(let i=e.resultIndex; i<e.results.length; i++){
+    for(let i=e.resultIndex;i<e.results.length;i++){
       const text=e.results[i][0].transcript.toLowerCase().trim();
-      if(text.length<2) continue;
-      // Debounce: skip if same command within 800ms
+      if(text.length<2)continue;
       const now=Date.now();
       const cmdKey=getCommandKey(text);
-      if(cmdKey && cmdKey===lastCmd && (now-lastCmdTime)<800) continue;
-      if(cmdKey){
-        lastCmd=cmdKey; lastCmdTime=now;
-        handleVoiceCommand(text);
-        break; // Only process first match per event
-      }
+      if(cmdKey&&cmdKey===lastCmd&&(now-lastCmdTime)<800)continue;
+      if(cmdKey){lastCmd=cmdKey;lastCmdTime=now;handleVoiceCommand(text);break;}
     }
   };
-
-  recognition.onerror=e=>{
-    if(e.error==='not-allowed'){ setStatus('Mic permission denied'); stopVoice(); }
-    // Ignore no-speech — keep listening
-  };
-
-  // Auto-restart to keep session alive
-  recognition.onend=()=>{ if(voiceActive) recognition.start(); };
+  recognition.onerror=e=>{if(e.error==='not-allowed'){setStatus('Mic denied');stopVoice();}};
+  recognition.onend=()=>{if(voiceActive)recognition.start();};
   recognition.start();
 }
 
 function stopVoice(){
   voiceActive=false;
-  if(recognition){ recognition.abort(); recognition=null; }
+  if(recognition){recognition.abort();recognition=null;}
   document.getElementById('btn-voice').classList.remove('voice-on');
   voiceSheet.classList.remove('open');
+  soundPop(); // 🔊 Pop when voice off
   setStatus('Voice off');
 }
 
-// Returns command key for debounce matching
 function getCommandKey(text){
   if(text.includes('photo'))     return 'photo';
   if(text.includes('video'))     return 'video';
@@ -826,99 +761,67 @@ function getCommandKey(text){
   return null;
 }
 
-function flashChip(chipId, keepAlive){
-  const chip=document.getElementById(chipId);
-  if(!chip)return;
+function flashChip(chipId,keepAlive){
+  const chip=document.getElementById(chipId); if(!chip)return;
   chip.classList.add('heard');
   setTimeout(()=>{
-    if(keepAlive){ chip.classList.remove('heard'); }
-    else {
-      chip.classList.add('used');
-      // Hide group if all chips used
-      const grp=chip.closest('.cmd-section');
-      if(grp&&grp.querySelectorAll('.cmd-chip:not(.used)').length===0)
-        grp.style.display='none';
-    }
-  }, 400);
+    if(keepAlive){chip.classList.remove('heard');}
+    else{chip.classList.add('used');}
+  },400);
 }
 
 function showHeard(text){
   heardBadge.textContent='✓ '+text;
   heardBadge.classList.add('show');
   clearTimeout(heardTimer);
-  heardTimer=setTimeout(()=>heardBadge.classList.remove('show'), 1200);
+  heardTimer=setTimeout(()=>heardBadge.classList.remove('show'),1200);
 }
 
 function handleVoiceCommand(text){
-  const cmd=getCommandKey(text);
-  if(!cmd)return;
-
+  const cmd=getCommandKey(text); if(!cmd)return;
+  showHeard(cmd.charAt(0).toUpperCase()+cmd.slice(1));
   switch(cmd){
     case 'photo':
-      showHeard('Photo'); flashChip('chip-photo',false);
-      setMode('photo'); break;
-
+      soundSwoosh(); flashChip('chip-photo',false); setMode('photo'); break;
     case 'video':
-      showHeard('Video'); flashChip('chip-video',false);
-      setMode('video'); break;
-
+      soundSwoosh(); flashChip('chip-video',false); setMode('video'); break;
     case 'capture': case 'shoot':
-      showHeard('Capture'); flashChip('chip-capture',true);
-      shutterPress(); break;
-
+      flashChip('chip-capture',true); shutterPress(); break;
     case 'click':
-      showHeard('Click'); flashChip('chip-capture',true);
+      flashChip('chip-click',true);
       if(mode!=='photo')setMode('photo');
-      shutterPress(); break;
-
+      capturePhoto(); break; // Direct photo — always shutter sound
     case 'record':
-      showHeard('Record'); flashChip('chip-record',true);
+      soundRecordStart(); flashChip('chip-record',true);
       if(mode!=='video')setMode('video');
-      shutterPress(); break;
-
+      fileVideo.click(); break;
     case 'stop':
-      showHeard('Stop'); flashChip('chip-stop',true);
-      shutterPress(); break;
-
+      soundRecordStop(); flashChip('chip-stop-rec',true);
+      break;
     case 'landscape':
-      showHeard('Landscape'); flashChip('chip-landscape',false);
-      setPreset(90); break;
-
+      soundTick(); flashChip('chip-landscape',false); setPreset(90); break;
     case 'normal':
-      showHeard('Normal'); flashChip('chip-normal',false);
-      setPreset(0); break;
-
+      soundTick(); flashChip('chip-normal',false); setPreset(0); break;
     case 'flip':
-      showHeard('Flip'); flashChip('chip-flip',false);
-      setPreset(180); break;
-
+      soundTick(); flashChip('chip-flip',false); setPreset(180); break;
     case 'reverse':
-      showHeard('Reverse'); flashChip('chip-reverse',false);
-      setPreset(-90); break;
-
+      soundTick(); flashChip('chip-reverse',false); setPreset(-90); break;
     case 'front':
-      showHeard('Front'); flashChip('chip-front',true);
-      facingMode='user';
-      if(stream){stream.getTracks().forEach(t=>t.stop()); startCamera();} break;
-
+      soundPop(); flashChip('chip-front',true);
+      facingMode='user'; if(stream){stream.getTracks().forEach(t=>t.stop());startCamera();} break;
     case 'back':
-      showHeard('Back'); flashChip('chip-back',true);
-      facingMode='environment';
-      if(stream){stream.getTracks().forEach(t=>t.stop()); startCamera();} break;
-
+      soundPop(); flashChip('chip-back',true);
+      facingMode='environment'; if(stream){stream.getTracks().forEach(t=>t.stop());startCamera();} break;
     case 'grid':
-      showHeard('Grid'); flashChip('chip-grid',true);
-      toggleGrid(); break;
-
+      soundTick(); flashChip('chip-grid',true); toggleGrid(); break;
     case 'mirror':
-      showHeard('Mirror'); flashChip('chip-mirror',true);
-      toggleMirror(); break;
+      soundPop(); flashChip('chip-mirror',true); toggleMirror(); break;
   }
 }
 
-function setStatus(msg){ statusBar.textContent=msg; }
-window.addEventListener('resize',()=>{ applyTransform(); if(gridOn)drawGrid(); });
-if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+function setStatus(msg){statusBar.textContent=msg;}
+window.addEventListener('resize',()=>{applyTransform();if(gridOn)drawGrid();});
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}
 </script>
 </body>
 </html>
