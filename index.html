@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>OrientCam</title>
+  <meta name="description" content="Shoot landscape video while holding phone in portrait — no tilting needed">
+  <meta name="theme-color" content="#0a0a0a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="OrientCam">
+
+  <!-- PWA Manifest inline -->
+  <link rel="manifest" href="manifest.json">
+
+  <!-- Favicon / App Icon via SVG -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230a0a0a'/><rect x='20' y='30' width='60' height='40' rx='6' fill='none' stroke='%23ffa500' stroke-width='5'/><circle cx='50' cy='50' r='10' fill='%23ffa500'/><polygon points='72,25 80,50 72,75' fill='%23ffa500'/></svg>">
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --orange: #ffa500;
+      --orange-dim: rgba(255,165,0,0.2);
+      --white: #ffffff;
+      --bg: #0a0a0a;
+      --surface: #141414;
+      --surface2: #1e1e1e;
+      --border: rgba(255,255,255,0.1);
+      --text: rgba(255,255,255,0.85);
+      --text-muted: rgba(255,255,255,0.4);
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: var(--text);
+      touch-action: none;
+    }
+
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+    }
+
+    /* ── TOP BAR ── */
+    #topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      z-index: 20;
+    }
+
+    .app-name {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--orange);
+    }
+
+    .app-tagline {
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 0.3px;
+    }
+
+    #mode-toggle {
+      display: flex;
+      background: var(--surface2);
+      border-radius: 20px;
+      padding: 3px;
+      gap: 2px;
+      border: 1px solid var(--border);
+    }
+
+    .mode-btn {
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 13px;
+      padding: 5px 14px;
+      border-radius: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-weight: 500;
+    }
+
+    .mode-btn.active {
+      background: var(--orange);
+      color: #000;
+    }
+
+    /* ── VIEWFINDER ── */
+    #viewfinder-wrap {
+      flex: 1;
+      position: relative;
+      background: #000;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #preview {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    #grid-canvas {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 3;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    #grid-canvas.show { opacity: 1; }
+
+    #orient-badge {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,165,0,0.9);
+      color: #000;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 20px;
+      white-space: nowrap;
+      z-index: 5;
+      letter-spacing: 0.2px;
+    }
+
+    #rec-badge {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      display: none;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(255,59,48,0.5);
+      padding: 5px 10px;
+      border-radius: 20px;
+      z-index: 5;
+    }
+    #rec-badge.show { display: flex; }
+
+    .rec-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #ff3b30;
+      animation: pulse 1s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(0.8)} }
+
+    #rec-time {
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    #snap-thumb {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      width: 56px;
+      height: 56px;
+      border-radius: 10px;
+      object-fit: cover;
+      border: 2px solid var(--white);
+      display: none;
+      z-index: 5;
+      cursor: pointer;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+    }
+
+    /* ── PERMISSION SCREEN ── */
+    #perm-screen {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      background: #000;
+      z-index: 30;
+      padding: 32px 24px;
+      text-align: center;
+    }
+
+    .perm-icon {
+      width: 72px; height: 72px;
+      background: var(--surface2);
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 36px;
+    }
+
+    .perm-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--white);
+    }
+
+    .perm-sub {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.7;
+      max-width: 280px;
+    }
+
+    #perm-btn {
+      background: var(--orange);
+      color: #000;
+      border: none;
+      padding: 13px 32px;
+      border-radius: 30px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 8px;
+      letter-spacing: 0.2px;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+    #perm-btn:active { opacity: 0.8; transform: scale(0.97); }
+
+    /* ── CONTROLS ── */
+    #controls {
+      flex-shrink: 0;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 12px 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .ctrl-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .ctrl-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      min-width: 48px;
+    }
+
+    input[type=range] {
+      flex: 1;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--surface2);
+      outline: none;
+      border: none;
+      cursor: pointer;
+      -webkit-appearance: none;
+      accent-color: var(--orange);
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      background: var(--orange);
+      cursor: pointer;
+    }
+
+    .rot-val {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--orange);
+      min-width: 36px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── MAIN BUTTONS ROW ── */
+    .btn-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-evenly;
+    }
+
+    .icon-btn {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      font-size: 18px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .icon-btn:active { transform: scale(0.92); }
+    .icon-btn.on { border-color: var(--orange); background: var(--orange-dim); color: var(--orange); }
+
+    #shutter {
+      width: 70px; height: 70px;
+      border-radius: 50%;
+      border: 3px solid var(--white);
+      background: transparent;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s;
+      -webkit-tap-highlight-color: transparent;
+      flex-shrink: 0;
+    }
+    #shutter .inner {
+      width: 54px; height: 54px;
+      border-radius: 50%;
+      background: var(--white);
+      transition: all 0.2s;
+    }
+    #shutter.rec { border-color: #ff3b30; }
+    #shutter.rec .inner {
+      background: #ff3b30;
+      border-radius: 10px;
+      width: 28px; height: 28px;
+    }
+    #shutter:active { transform: scale(0.94); }
+
+    /* ── STATUS ── */
+    #status {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: center;
+      min-height: 14px;
+    }
+
+    /* ── SAVED CLIPS ── */
+    #saved-bar {
+      display: none;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 8px 16px;
+      gap: 8px;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    #saved-bar.show { display: flex; }
+
+    .saved-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    #clip-list {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+
+    .clip-item {
+      flex-shrink: 0;
+      width: 80px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .clip-box {
+      width: 80px; height: 52px;
+      border-radius: 8px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      cursor: pointer;
+      position: relative;
+      transition: border-color 0.15s;
+    }
+    .clip-box:active { border-color: var(--orange); }
+
+    .clip-dl {
+      background: var(--orange);
+      color: #000;
+      border: none;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 0;
+      cursor: pointer;
+      width: 100%;
+      letter-spacing: 0.3px;
+    }
+    .clip-dl:active { opacity: 0.8; }
+  </style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- TOP BAR -->
+  <div id="topbar">
+    <div>
+      <div class="app-name">OrientCam</div>
+      <div class="app-tagline">No-tilt camera</div>
+    </div>
+    <div id="mode-toggle">
+      <button class="mode-btn active" onclick="setMode('video')">Video</button>
+      <button class="mode-btn" onclick="setMode('photo')">Photo</button>
+    </div>
+  </div>
+
+  <!-- VIEWFINDER -->
+  <div id="viewfinder-wrap">
+
+    <!-- Permission screen -->
+    <div id="perm-screen">
+      <div class="perm-icon">📷</div>
+      <div class="perm-title">OrientCam</div>
+      <p class="perm-sub">Shoot landscape video while holding your phone in portrait. No tilting needed — the app rotates for you.</p>
+      <button id="perm-btn" onclick="startCamera()">Enable Camera</button>
+    </div>
+
+    <video id="preview" autoplay muted playsinline></video>
+    <canvas id="grid-canvas"></canvas>
+    <div id="orient-badge">Hold portrait → Output: Landscape</div>
+    <div id="rec-badge">
+      <div class="rec-dot"></div>
+      <span id="rec-time">00:00</span>
+    </div>
+    <img id="snap-thumb" alt="Last photo">
+  </div>
+
+  <!-- SAVED CLIPS -->
+  <div id="saved-bar">
+    <span class="saved-label">Saved Clips</span>
+    <div id="clip-list"></div>
+  </div>
+
+  <!-- CONTROLS -->
+  <div id="controls">
+
+    <!-- Rotation slider -->
+    <div class="ctrl-row">
+      <span class="ctrl-label">Rotate</span>
+      <input type="range" id="rot-slider" min="-180" max="180" step="1" value="90" oninput="onRotate(this.value)">
+      <span class="rot-val" id="rot-val">90°</span>
+    </div>
+
+    <!-- Main buttons -->
+    <div class="btn-row">
+      <button class="icon-btn" id="btn-grid" onclick="toggleGrid()" title="Grid">⊞</button>
+      <button class="icon-btn" id="btn-flip" onclick="flipCamera()" title="Flip camera">🔄</button>
+      <div id="shutter" onclick="shutterPress()">
+        <div class="inner"></div>
+      </div>
+      <button class="icon-btn" id="btn-mirror" onclick="toggleMirror()" title="Mirror">↔</button>
+      <button class="icon-btn" id="btn-zoom" onclick="cycleZoom()" title="Zoom">🔍</button>
+    </div>
+
+    <div id="status">Tap Enable Camera to start</div>
+  </div>
+
+</div>
+
+<script>
+// ── STATE ──
+let stream = null;
+let recorder = null;
+let chunks = [];
+let isRecording = false;
+let mode = 'video';
+let rotation = 90;
+let facingMode = 'environment';
+let mirrored = false;
+let gridOn = false;
+let recTimerId = null;
+let recSecs = 0;
+let zoomLevel = 1;
+let zoomSteps = [1, 1.5, 2, 3];
+let zoomIdx = 0;
+let savedClips = [];
+
+const preview = document.getElementById('preview');
+const shutter = document.getElementById('shutter');
+const recBadge = document.getElementById('rec-badge');
+const recTimeEl = document.getElementById('rec-time');
+const orientBadge = document.getElementById('orient-badge');
+const statusEl = document.getElementById('status');
+const gridCanvas = document.getElementById('grid-canvas');
+const snapThumb = document.getElementById('snap-thumb');
+const savedBar = document.getElementById('saved-bar');
+const clipList = document.getElementById('clip-list');
+const permScreen = document.getElementById('perm-screen');
+const photoCanvas = document.createElement('canvas');
+
+// ── CAMERA ──
+async function startCamera() {
+  try {
+    setStatus('Starting camera...');
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: true
+    });
+    preview.srcObject = stream;
+    await preview.play();
+    permScreen.style.display = 'none';
+    applyTransform();
+    setStatus(mode === 'video' ? 'Ready — press circle to record' : 'Ready — press circle to snap');
+    drawGrid();
+  } catch(e) {
+    setStatus('Camera error: ' + e.message);
+  }
+}
+
+function applyTransform() {
+  const wrap = document.getElementById('viewfinder-wrap');
+  const ww = wrap.clientWidth;
+  const wh = wrap.clientHeight;
+  const absR = Math.abs(rotation % 360);
+  const isTransposed = (absR === 90 || absR === 270);
+  let scale = 1;
+  if (isTransposed) {
+    scale = Math.min(ww / wh, wh / ww);
+    scale = Math.max(scale, 0.5);
+  }
+  const mx = mirrored ? -1 : 1;
+  preview.style.transform = `scaleX(${mx}) rotate(${rotation}deg) scale(${scale})`;
+  updateBadge();
+}
+
+function updateBadge() {
+  const r = ((rotation % 360) + 360) % 360;
+  let label;
+  if (r === 90 || r === 270) label = 'Hold portrait → Output: Landscape';
+  else if (r === 180) label = 'Hold portrait → Output: Upside-down';
+  else if (r === 0) label = 'Normal orientation';
+  else label = `Custom rotation: ${rotation}°`;
+  orientBadge.textContent = label;
+}
+
+function onRotate(val) {
+  rotation = parseInt(val);
+  document.getElementById('rot-val').textContent = val + '°';
+  applyTransform();
+}
+
+// ── SHUTTER ──
+function shutterPress() {
+  if (!stream) { setStatus('Start camera first'); return; }
+  mode === 'video' ? (isRecording ? stopRec() : startRec()) : takePhoto();
+}
+
+function startRec() {
+  chunks = [];
+  let mime = 'video/webm;codecs=vp9';
+  if (!MediaRecorder.isTypeSupported(mime)) mime = 'video/webm';
+  recorder = new MediaRecorder(stream, { mimeType: mime });
+  recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+  recorder.onstop = saveClip;
+  recorder.start(200);
+  isRecording = true;
+  shutter.classList.add('rec');
+  recBadge.classList.add('show');
+  recSecs = 0;
+  recTimerId = setInterval(() => {
+    recSecs++;
+    const m = String(Math.floor(recSecs / 60)).padStart(2, '0');
+    const s = String(recSecs % 60).padStart(2, '0');
+    recTimeEl.textContent = m + ':' + s;
+  }, 1000);
+  setStatus('Recording... tap circle to stop');
+}
+
+function stopRec() {
+  if (recorder && recorder.state !== 'inactive') recorder.stop();
+  isRecording = false;
+  clearInterval(recTimerId);
+  shutter.classList.remove('rec');
+  recBadge.classList.remove('show');
+  setStatus('Clip saved below');
+}
+
+function saveClip() {
+  const blob = new Blob(chunks, { type: 'video/webm' });
+  const url = URL.createObjectURL(blob);
+  const n = savedClips.length + 1;
+  savedClips.push({ url, n });
+
+  const item = document.createElement('div');
+  item.className = 'clip-item';
+  item.innerHTML = `
+    <div class="clip-box" onclick="playClip('${url}')">🎬</div>
+    <button class="clip-dl" onclick="dlClip('${url}', ${n})">↓ Clip ${n}</button>
+  `;
+  clipList.appendChild(item);
+  savedBar.classList.add('show');
+}
+
+function playClip(url) {
+  window.open(url, '_blank');
+}
+
+function dlClip(url, n) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'orientcam_clip_' + n + '.webm';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+// ── PHOTO ──
+function takePhoto() {
+  const vw = preview.videoWidth || 640;
+  const vh = preview.videoHeight || 480;
+  const absR = Math.abs(rotation % 360);
+  const transposed = (absR === 90 || absR === 270);
+  photoCanvas.width = transposed ? vh : vw;
+  photoCanvas.height = transposed ? vw : vh;
+  const ctx = photoCanvas.getContext('2d');
+  ctx.save();
+  ctx.translate(photoCanvas.width / 2, photoCanvas.height / 2);
+  ctx.rotate(rotation * Math.PI / 180);
+  if (mirrored) ctx.scale(-1, 1);
+  ctx.drawImage(preview, -vw / 2, -vh / 2, vw, vh);
+  ctx.restore();
+  const dataUrl = photoCanvas.toDataURL('image/jpeg', 0.93);
+  snapThumb.src = dataUrl;
+  snapThumb.style.display = 'block';
+  snapThumb.onclick = () => {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = 'orientcam_photo_' + Date.now() + '.jpg';
+    a.click();
+  };
+  setStatus('Photo captured — tap thumbnail to download');
+}
+
+// ── CONTROLS ──
+function setMode(m) {
+  mode = m;
+  document.querySelectorAll('.mode-btn').forEach((b, i) => {
+    b.classList.toggle('active', (m === 'video' && i === 0) || (m === 'photo' && i === 1));
+  });
+  setStatus(m === 'video' ? 'Video mode — tap circle to record' : 'Photo mode — tap circle to snap');
+}
+
+function flipCamera() {
+  facingMode = facingMode === 'environment' ? 'user' : 'environment';
+  if (stream) startCamera();
+}
+
+function toggleMirror() {
+  mirrored = !mirrored;
+  document.getElementById('btn-mirror').classList.toggle('on', mirrored);
+  applyTransform();
+  setStatus('Mirror: ' + (mirrored ? 'On' : 'Off'));
+}
+
+function toggleGrid() {
+  gridOn = !gridOn;
+  document.getElementById('btn-grid').classList.toggle('on', gridOn);
+  gridCanvas.classList.toggle('show', gridOn);
+  if (gridOn) drawGrid();
+}
+
+function drawGrid() {
+  const wrap = document.getElementById('viewfinder-wrap');
+  gridCanvas.width = wrap.clientWidth;
+  gridCanvas.height = wrap.clientHeight;
+  const ctx = gridCanvas.getContext('2d');
+  ctx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 0.8;
+  for (let i = 1; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(gridCanvas.width * i / 3, 0);
+    ctx.lineTo(gridCanvas.width * i / 3, gridCanvas.height);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, gridCanvas.height * i / 3);
+    ctx.lineTo(gridCanvas.width, gridCanvas.height * i / 3);
+    ctx.stroke();
+  }
+}
+
+function cycleZoom() {
+  zoomIdx = (zoomIdx + 1) % zoomSteps.length;
+  zoomLevel = zoomSteps[zoomIdx];
+  const btn = document.getElementById('btn-zoom');
+  btn.textContent = zoomLevel + 'x';
+  btn.classList.toggle('on', zoomLevel > 1);
+  try {
+    const track = stream && stream.getVideoTracks()[0];
+    if (track && track.applyConstraints) {
+      track.applyConstraints({ advanced: [{ zoom: zoomLevel }] });
+    }
+  } catch(e) {}
+  setStatus('Zoom: ' + zoomLevel + 'x');
+}
+
+function setStatus(msg) {
+  statusEl.textContent = msg;
+}
+
+// ── RESIZE ──
+window.addEventListener('resize', () => {
+  applyTransform();
+  if (gridOn) drawGrid();
+});
+
+// ── SERVICE WORKER ──
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
