@@ -1,5 +1,6 @@
 {
-  "version": "1.9",
+  "version": "2.0",
   "date": "10-Apr-2026",
-  "notes": "Auto-return to camera after share, gesture zones fixed, dual mode solid"
+  "owner": "EIL",
+  "notes": "Portrait default, anti-clockwise landscape, dual fixed, cinema mode, tap focus, countdown, copy protection"
 }

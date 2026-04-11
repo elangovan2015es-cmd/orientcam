@@ -1,55 +1,68 @@
-# OrientCam v1.9 — Auto-Update Edition
+# OrientCam v2.0 — EIL Professional Edition
 
-| Item    | Detail               |
-|---------|----------------------|
-| Version | 1.9                  |
-| Date    | 10-Apr-2026          |
-| Cache   | orientcam-v1.9-cache |
+| Item      | Detail                          |
+|-----------|---------------------------------|
+| Version   | 2.0                             |
+| Date      | 10-Apr-2026                     |
+| Owner     | Elango Industries Limited (EIL) |
+| Protected | Yes — domain locked, watermarked|
 
-## Files in This Version (5 files — version.json is new)
+## Files (5)
 
-| File         | Purpose                                      |
-|--------------|----------------------------------------------|
-| index.html   | Main app                                     |
-| manifest.json| PWA install config                           |
-| sw.js        | Service worker with auto-update logic        |
-| version.json | Version number — update this for each release|
-| README.md    | This file                                    |
+| File         | Purpose                              |
+|--------------|--------------------------------------|
+| index.html   | Main app                             |
+| manifest.json| PWA install config                   |
+| sw.js        | Service worker + auto-update         |
+| version.json | Version trigger for auto-update      |
+| README.md    | This file                            |
 
-## Auto-Update System — No More Manual Deletion!
+## What's New in v2.0
 
-### How it works:
-1. App opens → waits 3 seconds → fetches version.json from GitHub
-2. Compares live version number with current app version
-3. If different → green banner appears at top: "New version available!"
-4. User taps banner → cache cleared → new version loads
-5. Checks again every 5 minutes while app is open
+### Bugs Fixed
+- Camera starts in Portrait by default (rotation=0)
+- Landscape uses anti-clockwise rotation (-90°)
+- Dual mode: landscape canvas rotated, portrait canvas centre crop only — no rotation applied to portrait
 
-### What YOU do when releasing a new version:
-1. Upload new index.html and sw.js with new version number
-2. Update version.json → change "version" to the new number
-3. That's it — all users see the update banner next time they open the app
+### New Features
+- 3-2-1 countdown before recording starts
+- Tap screen anywhere to focus (with focus ring indicator)
+- Cinema letterbox mode (black bars top/bottom)
+- Shot counter (Shot 1, Shot 2...)
+- "Cinema" voice command
 
-### Example — releasing v2.0:
-- index.html → change APP_VERSION to '2.0'
-- sw.js → change CACHE to 'orientcam-v2.0-cache'
-- manifest.json → change _version to '2.0'
-- version.json → change "version" to "2.0"
-- Upload all 5 files → done
+### Copy Protection
+- Right-click disabled
+- Long press on video/image blocked
+- Text selection disabled
+- Keyboard save shortcuts blocked (Ctrl+S etc)
+- Domain locked to elangovan2015es-cmd.github.io
+- Subtle watermark burned into all videos and stills: "OrientCam © EIL"
+- DevTools detection alert
 
-## Gesture Zones
-- Left edge (52px) → tap = Roll (start recording)
-- Right edge (52px) → tap = Still snap
-- Swipe down on screen → Stop + Share
+## Voice Commands
 
-## After Share
-- App automatically returns to live camera
-- Ready to shoot again — no deletion, no reload needed
+| Say         | Action                         | Sound       |
+|-------------|--------------------------------|-------------|
+| "Roll"      | 3-2-1 countdown + record       | Triple beep |
+| "Stop"      | Stop recording                 | Descend     |
+| "Save"      | Stop if recording + Share      | Ping        |
+| "Stills"    | Snap photo                     | Shutter     |
+| "Zoom in"   | Zoom in 0.5x                   | Rise        |
+| "Zoom out"  | Zoom out 0.5x                  | Fall        |
+| "Landscape" | Anti-clockwise wide output     | Tick        |
+| "Portrait"  | Normal upright output          | Tick        |
+| "Flip"      | Toggle between portrait/land   | Tick        |
+| "Cinema"    | Toggle letterbox bars          | Tick        |
+| "Front"     | Front camera                   | Pop         |
+| "Back"      | Back camera                    | Pop         |
+| "Grid"      | Rule of thirds grid            | Tick        |
 
 ## Version History
 
 | Version | Date        | Changes                                              |
 |---------|-------------|------------------------------------------------------|
-| 1.0-1.8 | 09-Apr-2026 | See previous versions                                |
-| 1.9     | 10-Apr-2026 | Auto-return after share, gestures fixed, dual solid  |
-| 1.9p    | 10-Apr-2026 | Auto-update banner — no manual deletion ever again   |
+| 1.0-1.8 | 09-Apr-2026 | Progressive development                              |
+| 1.9     | 10-Apr-2026 | Auto-return after share, gestures, dual solid        |
+| 1.9p    | 10-Apr-2026 | Auto-update banner system                            |
+| 2.0     | 10-Apr-2026 | Portrait default, anti-CW landscape, dual fix, cinema|
