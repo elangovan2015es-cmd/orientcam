@@ -1,6 +1,6 @@
 {
-  "version": "2.1",
+  "version": "2.2",
   "date": "10-Apr-2026",
   "owner": "EIL",
-  "notes": "Dual mode fix, selfie video, fade effect, opening squares, swipe gestures"
+  "notes": "Null error fixed, blank camera after share fixed, gesture guide on permission screen"
 }

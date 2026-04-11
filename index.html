@@ -3,20 +3,21 @@
 <head>
   <!--
     OrientCam — EIL Edition
-    Version : 2.1
+    Version : 2.2
     Date    : 10-Apr-2026
     Author  : Elango / EIL
-    Changes : v2.1
-      - Dual mode FIXED: portrait uses raw video element directly (no rotation)
-      - Selfie video with 3-2-1 countdown
-      - Fade to black on stop/save
-      - Opening squares/brackets animation before roll
-      - Swipe left=Landscape, right=Portrait, up=ZoomIn, down=Stop+Save
-      - All copy protection from v2.0 retained
+    Fixes   : v2.2
+      - JS null error fixed (DOMContentLoaded)
+      - Share blank camera fixed (stream restarted on backToCamera)
+      - Gesture guide shown on permission screen BEFORE camera enabled
+      - Cinema removed (cleaner)
+      - Dual renamed clearly
+      - Portrait canvas raw crop confirmed
+      - Saving reliability improved
   -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>OrientCam v2.1</title>
+  <title>OrientCam v2.2</title>
   <meta name="theme-color" content="#0a0a0a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -42,39 +43,23 @@
     #grid-canvas{position:absolute;inset:0;pointer-events:none;z-index:2;opacity:0;transition:opacity 0.3s;}
     #grid-canvas.show{opacity:1;}
 
-    /* LETTERBOX */
-    #lb-top,#lb-bottom{position:absolute;left:0;right:0;height:0;background:#000;z-index:3;pointer-events:none;transition:height 0.4s ease;}
-    #lb-top{top:0;}#lb-bottom{bottom:0;}
-    .letterbox #lb-top,.letterbox #lb-bottom{height:11%;}
-
     /* FOCUS RING */
     #focus-ring{position:absolute;width:64px;height:64px;border:2px solid var(--orange);border-radius:50%;z-index:6;opacity:0;pointer-events:none;transform:translate(-50%,-50%) scale(1.4);transition:opacity 0.15s,transform 0.25s;}
     #focus-ring.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
 
-    /* ── OPENING SQUARES ANIMATION ── */
-    #squares-overlay{
-      position:fixed;inset:0;z-index:28;pointer-events:none;
-      display:none;
-    }
+    /* OPENING SQUARES */
+    #squares-overlay{position:fixed;inset:0;z-index:28;pointer-events:none;display:none;}
     #squares-overlay.show{display:block;}
-    .sq-corner{
-      position:absolute;width:60px;height:60px;
-      border-color:var(--orange);border-style:solid;
-      opacity:0;
-    }
+    .sq-corner{position:absolute;width:60px;height:60px;border-color:var(--orange);border-style:solid;opacity:0;}
     .sq-tl{top:15%;left:10%;border-width:3px 0 0 3px;transform:translate(-20px,-20px);}
     .sq-tr{top:15%;right:10%;border-width:3px 3px 0 0;transform:translate(20px,-20px);}
     .sq-bl{bottom:25%;left:10%;border-width:0 0 3px 3px;transform:translate(-20px,20px);}
     .sq-br{bottom:25%;right:10%;border-width:0 3px 3px 0;transform:translate(20px,20px);}
-    .sq-corner.animate{
-      opacity:1;transform:translate(0,0);
-      transition:all 0.35s cubic-bezier(0.4,0,0.2,1);
-    }
-    /* Inner squares */
     .sq-inner-tl{top:22%;left:18%;border-width:2px 0 0 2px;width:30px;height:30px;transform:translate(-10px,-10px);}
     .sq-inner-tr{top:22%;right:18%;border-width:2px 2px 0 0;width:30px;height:30px;transform:translate(10px,-10px);}
     .sq-inner-bl{bottom:32%;left:18%;border-width:0 0 2px 2px;width:30px;height:30px;transform:translate(-10px,10px);}
     .sq-inner-br{bottom:32%;right:18%;border-width:0 2px 2px 0;width:30px;height:30px;transform:translate(10px,10px);}
+    .sq-corner.animate{opacity:1;transform:translate(0,0);transition:all 0.35s cubic-bezier(0.4,0,0.2,1);}
 
     /* TOUCH ZONES */
     #zone-left{position:fixed;left:0;top:15%;width:52px;bottom:72px;z-index:12;display:flex;align-items:center;justify-content:center;border-right:1px solid rgba(255,255,255,0.06);}
@@ -93,7 +78,7 @@
     .top-controls{display:flex;align-items:center;gap:8px;}
     .top-btn{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,0.08);border:0.5px solid rgba(255,255,255,0.13);border-radius:10px;padding:5px 9px;cursor:pointer;transition:all 0.2s;}
     .top-btn.active{border-color:var(--orange);background:var(--orange-dim);}
-    .top-btn-dot{width:7px;height:7px;border-radius:50%;background:var(--muted);transition:background 0.2s;}
+    .top-btn-dot{width:7px;height:7px;border-radius:50%;background:var(--muted);}
     .top-btn.active .top-btn-dot{background:var(--orange);}
     .top-btn-label{font-size:11px;font-weight:500;color:var(--muted);}
     .top-btn.active .top-btn-label{color:var(--orange);}
@@ -110,28 +95,16 @@
     #rec-time{color:#fff;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;}
     #shot-counter{position:fixed;z-index:10;top:max(env(safe-area-inset-top),10px);margin-top:50px;left:14px;background:rgba(0,0,0,0.6);color:rgba(255,255,255,0.7);font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;display:none;}
     #shot-counter.show{display:block;}
-    #mode-badge{position:fixed;z-index:10;bottom:80px;left:14px;background:rgba(10,132,255,0.85);color:#fff;font-size:10px;font-weight:600;padding:3px 10px;border-radius:10px;display:none;}
-    #mode-badge.show{display:block;}
     #zoom-badge{position:fixed;z-index:10;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.65);color:#fff;font-size:20px;font-weight:700;padding:10px 22px;border-radius:20px;opacity:0;transition:opacity 0.3s;pointer-events:none;}
     #zoom-badge.show{opacity:1;}
     #heard-badge{position:fixed;z-index:10;top:max(env(safe-area-inset-top),10px);margin-top:84px;left:50%;transform:translateX(-50%);background:rgba(48,209,88,0.92);color:#000;font-size:12px;font-weight:700;padding:4px 16px;border-radius:20px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity 0.15s;}
     #heard-badge.show{opacity:1;}
-    #hint-badge{position:fixed;z-index:10;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.75);color:rgba(255,255,255,0.9);font-size:13px;padding:12px 20px;border-radius:16px;text-align:center;line-height:1.7;opacity:0;transition:opacity 0.3s;pointer-events:none;white-space:pre-line;max-width:80vw;}
+    #hint-badge{position:fixed;z-index:10;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.78);color:rgba(255,255,255,0.92);font-size:13px;padding:14px 20px;border-radius:16px;text-align:center;line-height:1.7;opacity:0;transition:opacity 0.3s;pointer-events:none;white-space:pre-line;max-width:82vw;}
     #hint-badge.show{opacity:1;}
-
-    /* SWIPE HINT ARROWS */
-    #swipe-hint{position:fixed;z-index:10;bottom:82px;left:50%;transform:translateX(-50%);display:flex;gap:14px;opacity:0;transition:opacity 0.5s;pointer-events:none;}
-    #swipe-hint.show{opacity:1;}
-    .sw-arrow{font-size:11px;color:rgba(255,255,255,0.3);text-align:center;display:flex;flex-direction:column;gap:2px;}
-    .sw-icon{font-size:16px;}
-
-    /* FLASH and FADE */
     #flash-overlay{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:8;transition:opacity 0.08s;}
     #flash-overlay.flash{opacity:0.85;}
     #fade-overlay{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:9;transition:opacity 0.6s ease;}
     #fade-overlay.fading{opacity:1;}
-
-    /* DUAL INDICATOR */
     #dual-indicator{position:fixed;z-index:10;bottom:80px;right:14px;display:none;flex-direction:column;gap:4px;}
     #dual-indicator.show{display:flex;}
     .fmt-badge{font-size:10px;font-weight:600;padding:3px 8px;border-radius:8px;}
@@ -141,7 +114,7 @@
     /* COUNTDOWN */
     #countdown{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);}
     #countdown.show{display:flex;}
-    #countdown-num{font-size:120px;font-weight:900;color:#fff;text-shadow:0 0 40px rgba(255,165,0,0.8);animation:cdpulse 0.9s ease-in-out;}
+    #countdown-num{font-size:120px;font-weight:900;color:#fff;text-shadow:0 0 40px rgba(255,165,0,0.8);}
     @keyframes cdpulse{0%{transform:scale(1.4);opacity:0}50%{transform:scale(1);opacity:1}100%{transform:scale(0.8);opacity:0}}
 
     /* VOICE SHEET */
@@ -162,22 +135,19 @@
     .cmd-chip.used{opacity:0;max-width:0;padding:0;border-width:0;pointer-events:none;}
 
     /* RESULT */
-    #result-area{position:fixed;inset:0;z-index:25;background:rgba(0,0,0,0.96);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;padding-top:max(env(safe-area-inset-top),20px);padding-bottom:max(env(safe-area-inset-bottom),20px);}
+    #result-area{position:fixed;inset:0;z-index:25;background:rgba(0,0,0,0.97);display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px;padding-top:max(env(safe-area-inset-top),16px);padding-bottom:max(env(safe-area-inset-bottom),16px);}
     #result-area.show{display:flex;}
     .result-title{color:var(--orange);font-size:15px;font-weight:700;}
-    .result-preview-wrap{position:relative;width:100%;}
-    #result-video{width:100%;max-height:36vh;border-radius:10px;background:#111;}
-    .wm-label{position:absolute;bottom:6px;right:10px;font-size:9px;color:rgba(255,255,255,0.3);pointer-events:none;letter-spacing:0.5px;}
-    /* Dual preview row */
+    #result-video{width:100%;max-height:35vh;border-radius:10px;background:#111;}
     #dual-preview-row{display:none;gap:8px;width:100%;}
     #dual-preview-row.show{display:flex;}
     .dual-vid-wrap{flex:1;position:relative;}
-    .dual-vid{width:100%;height:120px;object-fit:cover;border-radius:8px;background:#111;}
-    .dual-vid-label{position:absolute;top:4px;left:6px;font-size:9px;font-weight:700;background:rgba(0,0,0,0.7);color:#fff;padding:2px 6px;border-radius:6px;}
+    .dual-vid{width:100%;height:110px;object-fit:cover;border-radius:8px;background:#111;}
+    .dual-vid-label{position:absolute;top:4px;left:6px;font-size:9px;font-weight:700;background:rgba(0,0,0,0.75);color:#fff;padding:2px 6px;border-radius:6px;}
     .result-files{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;width:100%;}
-    .result-file{background:var(--surface2);border:0.5px solid var(--border);border-radius:10px;padding:8px 12px;min-width:100px;text-align:center;}
+    .result-file{background:var(--surface2);border:0.5px solid var(--border);border-radius:10px;padding:8px 12px;min-width:90px;text-align:center;}
     .rf-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;}
-    .rf-val{font-size:12px;font-weight:600;}
+    .rf-val{font-size:11px;font-weight:600;}
     .result-actions{display:flex;gap:8px;width:100%;flex-wrap:wrap;}
     .r-btn{flex:1;padding:13px 8px;border-radius:14px;border:none;font-size:13px;font-weight:600;cursor:pointer;min-width:80px;}
     .r-btn:active{opacity:0.75;}
@@ -198,16 +168,30 @@
     .upd-sub{font-size:10px;opacity:0.7;}
     .upd-btn{background:#000;color:var(--green);border:none;border-radius:10px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;}
 
-    /* PERMISSION */
-    #perm-screen{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#000;padding:40px 28px;text-align:center;}
-    .perm-icon{width:80px;height:80px;background:var(--surface2);border-radius:22px;border:0.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:40px;}
+    /* PERMISSION — includes gesture guide */
+    #perm-screen{position:fixed;inset:0;z-index:50;background:#000;overflow-y:auto;}
+    .perm-inner{display:flex;flex-direction:column;align-items:center;gap:14px;padding:max(env(safe-area-inset-top),30px) 24px max(env(safe-area-inset-bottom),30px);min-height:100%;}
+    .perm-icon{width:72px;height:72px;background:var(--surface2);border-radius:20px;border:0.5px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:36px;flex-shrink:0;}
     .perm-title{font-size:22px;font-weight:700;}
-    .perm-ver{font-size:12px;color:var(--orange);opacity:0.7;}
-    .perm-sub{font-size:13px;color:var(--muted);line-height:1.7;max-width:300px;}
-    .perm-note{font-size:12px;color:var(--muted);background:var(--surface2);border:0.5px solid var(--border);border-radius:12px;padding:10px 16px;line-height:1.8;max-width:300px;text-align:left;}
-    .perm-note .hi{color:var(--green);}
-    .perm-note strong{color:var(--orange);}
-    #perm-btn{background:var(--orange);color:#000;border:none;padding:14px 40px;border-radius:30px;font-size:16px;font-weight:700;cursor:pointer;}
+    .perm-ver{font-size:12px;color:var(--orange);opacity:0.7;margin-top:-8px;}
+
+    /* GESTURE GUIDE — shown on permission screen */
+    .gesture-guide{width:100%;max-width:340px;}
+    .gg-title{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:10px;text-align:center;}
+    .gg-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+    .gg-item{background:var(--surface2);border:0.5px solid var(--border);border-radius:12px;padding:10px 12px;display:flex;align-items:flex-start;gap:8px;}
+    .gg-icon{font-size:20px;flex-shrink:0;margin-top:1px;}
+    .gg-text{display:flex;flex-direction:column;gap:2px;}
+    .gg-action{font-size:12px;font-weight:600;color:var(--text);}
+    .gg-desc{font-size:10px;color:var(--muted);}
+
+    .voice-guide{width:100%;max-width:340px;}
+    .vg-title{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;text-align:center;}
+    .vg-chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;}
+    .vg-chip{background:rgba(48,209,88,0.12);border:0.5px solid rgba(48,209,88,0.3);border-radius:12px;padding:4px 10px;font-size:11px;font-weight:600;color:var(--green);}
+
+    #perm-btn{background:var(--orange);color:#000;border:none;padding:14px 40px;border-radius:30px;font-size:16px;font-weight:700;cursor:pointer;width:100%;max-width:340px;}
+    #perm-btn:active{opacity:0.85;}
   </style>
 </head>
 <body>
@@ -218,7 +202,6 @@
   <button class="upd-btn">Update ↑</button>
 </div>
 
-<!-- CANVASES -->
 <canvas id="rec-canvas" style="display:none"></canvas>
 <canvas id="port-canvas" style="display:none"></canvas>
 <canvas id="snap-canvas" style="display:none"></canvas>
@@ -226,7 +209,6 @@
 <!-- VIEWFINDER -->
 <div id="viewfinder">
   <video id="preview" autoplay muted playsinline webkit-playsinline></video>
-  <div id="lb-top"></div><div id="lb-bottom"></div>
   <canvas id="grid-canvas"></canvas>
   <div id="focus-ring"></div>
 </div>
@@ -250,12 +232,14 @@
 <!-- TOP BAR -->
 <div id="topbar">
   <div class="brand">
-    <div class="brand-name">OrientCam <span class="brand-ver">v2.1</span></div>
+    <div class="brand-name">OrientCam <span class="brand-ver">v2.2</span></div>
     <div class="brand-sub">© EIL — Protected</div>
   </div>
   <div class="top-controls">
-    <div class="top-btn" id="btn-lb" onclick="toggleLetterbox()"><div class="top-btn-dot"></div><span class="top-btn-label">Cinema</span></div>
-    <div class="top-btn" id="btn-dual" onclick="toggleDual()"><div class="top-btn-dot"></div><span class="top-btn-label">Dual</span></div>
+    <div class="top-btn" id="btn-dual" onclick="toggleDual()">
+      <div class="top-btn-dot"></div>
+      <span class="top-btn-label">Land+Port</span>
+    </div>
     <div id="mic-btn" onclick="toggleVoice()">🎙</div>
   </div>
 </div>
@@ -264,18 +248,15 @@
 <div id="orient-badge">↕ Portrait</div>
 <div id="rec-badge"><div class="rec-dot"></div><span id="rec-time">00:00</span></div>
 <div id="shot-counter">Shot 1</div>
-<div id="mode-badge">🤳 Selfie</div>
 <div id="zoom-badge">1.0x</div>
 <div id="heard-badge"></div>
 <div id="hint-badge"></div>
-<div id="swipe-hint">
-  <div class="sw-arrow"><div class="sw-icon">←</div><div>Landscape</div></div>
-  <div class="sw-arrow"><div class="sw-icon">↕</div><div>Zoom</div></div>
-  <div class="sw-arrow"><div class="sw-icon">→</div><div>Portrait</div></div>
-</div>
 <div id="flash-overlay"></div>
 <div id="fade-overlay"></div>
-<div id="dual-indicator"><div class="fmt-badge fmt-land">↔ Land</div><div class="fmt-badge fmt-port">↕ Port</div></div>
+<div id="dual-indicator">
+  <div class="fmt-badge fmt-land">↔ Landscape saved</div>
+  <div class="fmt-badge fmt-port">↕ Portrait saved</div>
+</div>
 
 <!-- COUNTDOWN -->
 <div id="countdown"><div id="countdown-num">3</div></div>
@@ -284,14 +265,14 @@
 <div id="voice-sheet">
   <div class="voice-row">
     <div class="v-mic-dot"></div>
-    <span class="v-label">🎙 Listening</span>
+    <span class="v-label">🎙 Listening — say a command</span>
     <button class="v-stop-btn" onclick="stopVoice()">Off</button>
   </div>
   <div class="chip-row">
     <div class="cmd-chip" id="chip-roll"><span class="chip-word">🎬 Roll</span></div>
+    <div class="cmd-chip" id="chip-selfie"><span class="chip-word">🤳 Selfie</span></div>
     <div class="cmd-chip" id="chip-stop"><span class="chip-word">⏹ Stop</span></div>
     <div class="cmd-chip" id="chip-save"><span class="chip-word">💾 Save</span></div>
-    <div class="cmd-chip" id="chip-selfie"><span class="chip-word">🤳 Selfie</span></div>
     <div class="cmd-chip" id="chip-stills"><span class="chip-word">📷 Stills</span></div>
     <div class="chip-sep"></div>
     <div class="cmd-chip" id="chip-zin"><span class="chip-word">🔍+ Zoom In</span></div>
@@ -300,7 +281,6 @@
     <div class="cmd-chip" id="chip-land"><span class="chip-word">↔ Landscape</span></div>
     <div class="cmd-chip" id="chip-port"><span class="chip-word">↕ Portrait</span></div>
     <div class="cmd-chip" id="chip-flip"><span class="chip-word">🔃 Flip</span></div>
-    <div class="cmd-chip" id="chip-cinema"><span class="chip-word">🎞 Cinema</span></div>
     <div class="chip-sep"></div>
     <div class="cmd-chip" id="chip-front"><span class="chip-word">🤳 Front</span></div>
     <div class="cmd-chip" id="chip-back"><span class="chip-word">📸 Back</span></div>
@@ -311,11 +291,7 @@
 <!-- RESULT -->
 <div id="result-area">
   <div class="result-title">🎬 Ready to Share</div>
-  <div class="result-preview-wrap">
-    <video id="result-video" controls playsinline webkit-playsinline></video>
-    <div class="wm-label">OrientCam © EIL</div>
-  </div>
-  <!-- Dual preview row — shows both videos side by side -->
+  <video id="result-video" controls playsinline webkit-playsinline></video>
   <div id="dual-preview-row">
     <div class="dual-vid-wrap">
       <video class="dual-vid" id="dual-land-vid" controls playsinline webkit-playsinline muted></video>
@@ -336,638 +312,782 @@
   </div>
 </div>
 
-<!-- PERMISSION -->
+<!-- PERMISSION — gesture guide shown here -->
 <div id="perm-screen">
-  <div class="perm-icon">🎬</div>
-  <div class="perm-title">OrientCam</div>
-  <div class="perm-ver">v2.1 — EIL Edition</div>
-  <p class="perm-sub">Professional voice-controlled video. Hold portrait. Shoot any format.</p>
-  <div class="perm-note">
-    <span class="hi">✦ "Roll"</span> — squares open → 3-2-1 → record<br>
-    <span class="hi">✦ "Selfie"</span> — front camera → 3-2-1 → record<br>
-    <span class="hi">✦ "Landscape"/"Portrait"</span> — switch output<br>
-    <span class="hi">✦ "Save"</span> — fades → stops → share sheet<br>
-    <strong>Swipe left/right</strong> = Landscape/Portrait<br>
-    <strong>Swipe up</strong> = Zoom In · <strong>Tap</strong> = Focus<br>
-    <strong>Left edge</strong> = Roll · <strong>Right edge</strong> = Still
+  <div class="perm-inner">
+    <div class="perm-icon">🎬</div>
+    <div class="perm-title">OrientCam</div>
+    <div class="perm-ver">v2.2 — EIL Edition</div>
+
+    <!-- GESTURE GUIDE — before camera starts -->
+    <div class="gesture-guide">
+      <div class="gg-title">Gestures</div>
+      <div class="gg-grid">
+        <div class="gg-item"><div class="gg-icon">👈</div><div class="gg-text"><div class="gg-action">Left edge tap</div><div class="gg-desc">Start recording (Roll)</div></div></div>
+        <div class="gg-item"><div class="gg-icon">👉</div><div class="gg-text"><div class="gg-action">Right edge tap</div><div class="gg-desc">Snap a still photo</div></div></div>
+        <div class="gg-item"><div class="gg-icon">←</div><div class="gg-text"><div class="gg-action">Swipe left</div><div class="gg-desc">Switch to Landscape</div></div></div>
+        <div class="gg-item"><div class="gg-icon">→</div><div class="gg-text"><div class="gg-action">Swipe right</div><div class="gg-desc">Switch to Portrait</div></div></div>
+        <div class="gg-item"><div class="gg-icon">↑</div><div class="gg-text"><div class="gg-action">Swipe up</div><div class="gg-desc">Zoom in</div></div></div>
+        <div class="gg-item"><div class="gg-icon">↓</div><div class="gg-text"><div class="gg-action">Swipe down</div><div class="gg-desc">Stop + Save</div></div></div>
+        <div class="gg-item"><div class="gg-icon">👆</div><div class="gg-text"><div class="gg-action">Tap screen</div><div class="gg-desc">Focus on that spot</div></div></div>
+        <div class="gg-item"><div class="gg-icon">🤏</div><div class="gg-text"><div class="gg-action">Pinch</div><div class="gg-desc">Zoom in / out</div></div></div>
+      </div>
+    </div>
+
+    <!-- VOICE GUIDE -->
+    <div class="voice-guide">
+      <div class="vg-title">Voice Commands (tap 🎙 first)</div>
+      <div class="vg-chips">
+        <span class="vg-chip">Roll</span>
+        <span class="vg-chip">Selfie</span>
+        <span class="vg-chip">Stop</span>
+        <span class="vg-chip">Save</span>
+        <span class="vg-chip">Stills</span>
+        <span class="vg-chip">Zoom In</span>
+        <span class="vg-chip">Zoom Out</span>
+        <span class="vg-chip">Landscape</span>
+        <span class="vg-chip">Portrait</span>
+        <span class="vg-chip">Flip</span>
+        <span class="vg-chip">Front</span>
+        <span class="vg-chip">Back</span>
+        <span class="vg-chip">Grid</span>
+      </div>
+    </div>
+
+    <button id="perm-btn" onclick="startCamera()">Enable Camera →</button>
   </div>
-  <button id="perm-btn" onclick="startCamera()">Enable Camera</button>
 </div>
 
 <script>
-// OrientCam v2.1 — EIL Edition — 10-Apr-2026
-const APP_VERSION='2.1',OWNER='EIL';
-const FPS=24,FRAME_MS=1000/24,BITRATE=2500000,CHUNK_MS=1000;
+// OrientCam v2.2 — EIL Edition — 10-Apr-2026
+// KEY FIXES: null error, blank camera after share, gesture guide on perm screen
+'use strict';
+const APP_VERSION='2.2', OWNER='EIL';
+const FPS=24, FRAME_MS=1000/24, BITRATE=2500000, CHUNK_MS=1000;
 
 // ── COPY PROTECTION ──
 (function protect(){
   document.addEventListener('contextmenu',e=>e.preventDefault());
-  document.addEventListener('touchstart',e=>{if(e.target.tagName==='VIDEO'||e.target.tagName==='IMG')e.preventDefault();},{passive:false});
+  document.addEventListener('touchstart',e=>{
+    if(e.target.tagName==='VIDEO'||e.target.tagName==='IMG') e.preventDefault();
+  },{passive:false});
   document.addEventListener('selectstart',e=>e.preventDefault());
-  document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&['s','u','a','c'].includes(e.key.toLowerCase()))e.preventDefault();});
+  document.addEventListener('keydown',e=>{
+    if((e.ctrlKey||e.metaKey)&&['s','u','a','c'].includes(e.key.toLowerCase())) e.preventDefault();
+  });
   const allowed=['elangovan2015es-cmd.github.io','localhost','127.0.0.1'];
   if(!allowed.some(d=>window.location.hostname===d||window.location.hostname.endsWith(d))){
-    document.body.innerHTML='<div style="color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;text-align:center;padding:20px;"><div><div style="font-size:40px">🔒</div><h2 style="margin:16px 0">Unauthorised</h2><p style="opacity:0.6">Licensed to EIL only.</p></div></div>';
+    document.body.innerHTML='<div style="color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;text-align:center;padding:20px;"><div><div style="font-size:48px">🔒</div><h2 style="margin:16px 0">Unauthorised Access</h2><p style="opacity:0.6;font-size:14px">This app is licensed exclusively to EIL.<br>Contact elango@elangoindustries.com</p></div></div>';
   }
 })();
 
 // ── STATE ──
-let stream=null,rotation=0,facingMode='environment';
-let mirrored=false,gridOn=false,dualFormat=false,letterbox=false;
-let currentZoom=1.0,maxZoom=4.0,minZoom=1.0;
-let zoomTimer=null,hintTimer=null,heardTimer=null,focusTimer=null;
-let landRecorder=null,portRecorder=null;
-let landChunks=[],portChunks=[];
-let isRecording=false,drawInterval=null,portDrawInterval=null;
-let recTimerId=null,recSecs=0;
-let landBlob=null,portBlob=null,mp4Blob=null;
-let stillUrls=[],pendingStops=0,shotCount=0;
+let stream=null, rotation=0, facingMode='environment';
+let mirrored=false, gridOn=false, dualFormat=false;
+let currentZoom=1.0, maxZoom=4.0, minZoom=1.0;
+let zoomTimer=null, hintTimer=null, heardTimer=null, focusTimer=null;
+let landRecorder=null, portRecorder=null;
+let landChunks=[], portChunks=[];
+let isRecording=false, drawInterval=null;
+let recTimerId=null, recSecs=0;
+let landBlob=null, portBlob=null, mp4Blob=null;
+let stillUrls=[], pendingStops=0, shotCount=0;
 let countdownActive=false;
-let voiceActive=false,recognition=null;
-let lastCmd='',lastCmdTime=0;
+let voiceActive=false, recognition=null;
+let lastCmd='', lastCmdTime=0;
 let audioCtx=null;
-let swipeStartX=0,swipeStartY=0;
+let swipeStartX=0, swipeStartY=0, pinchDist0=0;
 
-const recCanvas=document.getElementById('rec-canvas');
-const portCanvas=document.getElementById('port-canvas');
-const snapCanvas=document.getElementById('snap-canvas');
-let recCtx=null,portCtx=null;
+// ── ALL DOM REFS — inside DOMContentLoaded to prevent null errors ──
+document.addEventListener('DOMContentLoaded', function() {
 
-const preview=document.getElementById('preview');
-const gridCanvas=document.getElementById('grid-canvas');
-const orientBadge=document.getElementById('orient-badge');
-const recBadge=document.getElementById('rec-badge');
-const recTimeEl=document.getElementById('rec-time');
-const shotCounter=document.getElementById('shot-counter');
-const modeBadge=document.getElementById('mode-badge');
-const zoomBadge=document.getElementById('zoom-badge');
-const heardBadge=document.getElementById('heard-badge');
-const hintBadge=document.getElementById('hint-badge');
-const swipeHint=document.getElementById('swipe-hint');
-const flashOv=document.getElementById('flash-overlay');
-const fadeOv=document.getElementById('fade-overlay');
-const dualInd=document.getElementById('dual-indicator');
-const voiceSheet=document.getElementById('voice-sheet');
-const resultArea=document.getElementById('result-area');
-const resultVideo=document.getElementById('result-video');
-const resultFiles=document.getElementById('result-files');
-const dualPreviewRow=document.getElementById('dual-preview-row');
-const permScreen=document.getElementById('perm-screen');
-const convRow=document.getElementById('convert-row');
-const convBar=document.getElementById('conv-bar');
-const convLabel=document.getElementById('conv-label');
-const viewfinder=document.getElementById('viewfinder');
-const countdown=document.getElementById('countdown');
-const cdNum=document.getElementById('countdown-num');
-const sqOverlay=document.getElementById('squares-overlay');
+  const recCanvas   = document.getElementById('rec-canvas');
+  const portCanvas  = document.getElementById('port-canvas');
+  const snapCanvas  = document.getElementById('snap-canvas');
+  let recCtx=null, portCtx=null;
 
-// ── AUDIO ──
-function getAudio(){
-  if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-  if(audioCtx.state==='suspended')audioCtx.resume();
-  return audioCtx;
-}
-function tone(f1,f2,dur,vol,type='sine'){
-  try{
-    const ctx=getAudio(),t=ctx.currentTime;
-    const o=ctx.createOscillator(),g=ctx.createGain();
-    o.type=type;o.frequency.setValueAtTime(f1,t);
-    if(f2!==f1)o.frequency.exponentialRampToValueAtTime(f2,t+dur);
-    g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur+0.02);
-    o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+dur+0.03);
-  }catch(e){}
-}
-function sndCountdown(){tone(880,880,0.08,0.5);}
-function sndRoll(){[0,0.13,0.26].forEach((d,i)=>setTimeout(()=>tone(440+i*220,440+i*220,0.09,0.4),d*1000));}
-function sndStop(){tone(660,220,0.3,0.45);}
-function sndShutter(){
-  try{
-    const ctx=getAudio(),t=ctx.currentTime;
-    const buf=ctx.createBuffer(1,ctx.sampleRate*0.04,ctx.sampleRate);
-    const d=buf.getChannelData(0);
-    for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*(1-i/d.length);
-    const src=ctx.createBufferSource();src.buffer=buf;
-    const f=ctx.createBiquadFilter();f.type='highpass';f.frequency.value=1200;
-    const g=ctx.createGain();g.gain.setValueAtTime(1.2,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.04);
-    src.connect(f);f.connect(g);g.connect(ctx.destination);src.start(t);src.stop(t+0.05);
-  }catch(e){}
-}
-function sndPing(){tone(1000,1000,0.09,0.22);}
-function sndTick(){tone(1200,1200,0.05,0.18,'triangle');}
-function sndPop(){tone(600,200,0.09,0.28);}
-function sndZoom(dir){tone(dir>0?400:800,dir>0?800:400,0.12,0.18);}
+  const preview     = document.getElementById('preview');
+  const gridCanvas  = document.getElementById('grid-canvas');
+  const orientBadge = document.getElementById('orient-badge');
+  const recBadge    = document.getElementById('rec-badge');
+  const recTimeEl   = document.getElementById('rec-time');
+  const shotCounter = document.getElementById('shot-counter');
+  const zoomBadge   = document.getElementById('zoom-badge');
+  const heardBadge  = document.getElementById('heard-badge');
+  const hintBadge   = document.getElementById('hint-badge');
+  const flashOv     = document.getElementById('flash-overlay');
+  const fadeOv      = document.getElementById('fade-overlay');
+  const dualInd     = document.getElementById('dual-indicator');
+  const voiceSheet  = document.getElementById('voice-sheet');
+  const resultArea  = document.getElementById('result-area');
+  const resultVideo = document.getElementById('result-video');
+  const resultFiles = document.getElementById('result-files');
+  const dualRow     = document.getElementById('dual-preview-row');
+  const permScreen  = document.getElementById('perm-screen');
+  const convRow     = document.getElementById('convert-row');
+  const convBar     = document.getElementById('conv-bar');
+  const convLabel   = document.getElementById('conv-label');
+  const viewfinder  = document.getElementById('viewfinder');
+  const countdown   = document.getElementById('countdown');
+  const cdNum       = document.getElementById('countdown-num');
+  const sqOverlay   = document.getElementById('squares-overlay');
+  const focusRing   = document.getElementById('focus-ring');
 
-// ── CAMERA ──
-async function startCamera(){
-  try{
-    if(stream)stream.getTracks().forEach(t=>t.stop());
-    stream=await navigator.mediaDevices.getUserMedia({
-      video:{facingMode,width:{ideal:1920},height:{ideal:1080}},audio:true
-    });
-    preview.srcObject=stream;await preview.play();
-    permScreen.style.display='none';
-    applyTransform();drawGrid();getAudio();
-    try{const vt=stream.getVideoTracks()[0];const c=vt.getCapabilities&&vt.getCapabilities();if(c&&c.zoom){minZoom=c.zoom.min||1;maxZoom=c.zoom.max||4;}}catch(e){}
-    modeBadge.textContent=facingMode==='user'?'🤳 Selfie':'📹 Back';
-    modeBadge.classList.add('show');
-    setTimeout(()=>modeBadge.classList.remove('show'),2000);
-    // Show swipe hint briefly
-    swipeHint.classList.add('show');
-    setTimeout(()=>swipeHint.classList.remove('show'),4000);
-    setPreset(0);
-    showHint('↕ Portrait ready\nSay "Roll" · Swipe ← for Landscape\nLeft edge = Roll · Tap = Focus',4000);
-  }catch(e){showHint('Camera error: '+e.message,4000);}
-}
-
-function applyTransform(){
-  const vw=viewfinder.clientWidth||375,vh=viewfinder.clientHeight||812;
-  const absR=Math.abs(((rotation%360)+360)%360);
-  const transposed=absR===90||absR===270;
-  const scale=transposed?Math.min(vw/vh,vh/vw)*0.95:1;
-  const mx=(facingMode==='user')?-1:1;
-  preview.style.transform=`scaleX(${mirrored?-mx:mx}) rotate(${rotation}deg) scale(${scale*currentZoom})`;
-  updateBadge();
-}
-
-function updateBadge(){
-  const n=((rotation%360)+360)%360;
-  if(n===0)        orientBadge.textContent='↕ Portrait';
-  else if(n===270) orientBadge.textContent='↔ Landscape ←';
-  else if(n===90)  orientBadge.textContent='↔ Landscape →';
-  else if(n===180) orientBadge.textContent='↕ Flipped';
-  else             orientBadge.textContent=`${rotation}°`;
-}
-
-function setPreset(deg){rotation=deg;applyTransform();}
-
-// ── TAP TO FOCUS ──
-viewfinder.addEventListener('touchend',e=>{
-  if(e.changedTouches.length!==1)return;
-  const touch=e.changedTouches[0];
-  const dx=Math.abs(touch.clientX-swipeStartX),dy=Math.abs(touch.clientY-swipeStartY);
-  if(dx<15&&dy<15){
-    // Pure tap — focus
-    focusRing.style.left=touch.clientX+'px';focusRing.style.top=touch.clientY+'px';
-    focusRing.classList.add('show');
-    clearTimeout(focusTimer);focusTimer=setTimeout(()=>focusRing.classList.remove('show'),1200);
+  // ── AUDIO ──
+  function getAudio(){
+    if(!audioCtx) audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended') audioCtx.resume();
+    return audioCtx;
+  }
+  function tone(f1,f2,dur,vol,type='sine'){
     try{
-      const vt=stream&&stream.getVideoTracks()[0];
-      if(vt&&vt.getCapabilities&&vt.getCapabilities().focusMode){
-        const rect=viewfinder.getBoundingClientRect();
-        vt.applyConstraints({advanced:[{pointsOfInterest:[{x:(touch.clientX-rect.left)/rect.width,y:(touch.clientY-rect.top)/rect.height}],focusMode:'single-shot'}]});
+      const ctx=getAudio(),t=ctx.currentTime;
+      const o=ctx.createOscillator(),g=ctx.createGain();
+      o.type=type;o.frequency.setValueAtTime(f1,t);
+      if(f2!==f1)o.frequency.exponentialRampToValueAtTime(f2,t+dur);
+      g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur+0.02);
+      o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+dur+0.03);
+    }catch(e){}
+  }
+  function sndCountdown(){tone(880,880,0.08,0.5);}
+  function sndRoll(){[0,0.13,0.26].forEach((d,i)=>setTimeout(()=>tone(440+i*220,440+i*220,0.09,0.4),d*1000));}
+  function sndStop(){tone(660,220,0.3,0.45);}
+  function sndShutter(){
+    try{
+      const ctx=getAudio(),t=ctx.currentTime;
+      const buf=ctx.createBuffer(1,Math.floor(ctx.sampleRate*0.04),ctx.sampleRate);
+      const d=buf.getChannelData(0);
+      for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*(1-i/d.length);
+      const src=ctx.createBufferSource();src.buffer=buf;
+      const f=ctx.createBiquadFilter();f.type='highpass';f.frequency.value=1200;
+      const g=ctx.createGain();g.gain.setValueAtTime(1.2,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.04);
+      src.connect(f);f.connect(g);g.connect(ctx.destination);src.start(t);src.stop(t+0.05);
+    }catch(e){}
+  }
+  function sndPing(){tone(1000,1000,0.09,0.22);}
+  function sndTick(){tone(1200,1200,0.05,0.18,'triangle');}
+  function sndPop(){tone(600,200,0.09,0.28);}
+  function sndZoom(dir){tone(dir>0?400:800,dir>0?800:400,0.12,0.18);}
+
+  // ── CAMERA ──
+  window.startCamera = async function(){
+    try{
+      if(stream) stream.getTracks().forEach(t=>t.stop());
+      stream=await navigator.mediaDevices.getUserMedia({
+        video:{facingMode,width:{ideal:1920},height:{ideal:1080}},
+        audio:true
+      });
+      preview.srcObject=stream;
+      await preview.play();
+      permScreen.style.display='none';
+      applyTransform(); drawGrid(); getAudio();
+      try{
+        const vt=stream.getVideoTracks()[0];
+        const c=vt.getCapabilities&&vt.getCapabilities();
+        if(c&&c.zoom){minZoom=c.zoom.min||1;maxZoom=c.zoom.max||4;}
+      }catch(e){}
+      setPreset(0); // Portrait default
+      showHint('↕ Portrait ready\nSay "Roll" or tap left edge',3000);
+    }catch(e){showHint('Camera error: '+e.message,4000);}
+  };
+
+  function applyTransform(){
+    if(!viewfinder) return;
+    const vw=viewfinder.clientWidth||375, vh=viewfinder.clientHeight||812;
+    const absR=Math.abs(((rotation%360)+360)%360);
+    const transposed=absR===90||absR===270;
+    const scale=transposed?Math.min(vw/vh,vh/vw)*0.95:1;
+    const mx=(facingMode==='user')?-1:1;
+    preview.style.transform=`scaleX(${mirrored?-mx:mx}) rotate(${rotation}deg) scale(${scale*currentZoom})`;
+    updateBadge();
+  }
+
+  function updateBadge(){
+    const n=((rotation%360)+360)%360;
+    if(n===0)        orientBadge.textContent='↕ Portrait';
+    else if(n===270) orientBadge.textContent='↔ Landscape ←';
+    else if(n===90)  orientBadge.textContent='↔ Landscape →';
+    else if(n===180) orientBadge.textContent='↕ Flipped';
+    else             orientBadge.textContent=`${rotation}°`;
+  }
+
+  function setPreset(deg){rotation=deg;applyTransform();}
+
+  // ── HINTS ──
+  function showHint(msg,dur){
+    hintBadge.textContent=msg;hintBadge.classList.add('show');
+    clearTimeout(hintTimer);hintTimer=setTimeout(()=>hintBadge.classList.remove('show'),dur||2000);
+  }
+
+  // ── FOCUS ──
+  viewfinder.addEventListener('touchend',e=>{
+    if(e.changedTouches.length!==1) return;
+    const t=e.changedTouches[0];
+    const dx=Math.abs(t.clientX-swipeStartX), dy=Math.abs(t.clientY-swipeStartY);
+    if(dx<15&&dy<15){
+      focusRing.style.left=t.clientX+'px';focusRing.style.top=t.clientY+'px';
+      focusRing.classList.add('show');
+      clearTimeout(focusTimer);focusTimer=setTimeout(()=>focusRing.classList.remove('show'),1200);
+      try{
+        const vt=stream&&stream.getVideoTracks()[0];
+        if(vt&&vt.getCapabilities&&vt.getCapabilities().focusMode){
+          const rect=viewfinder.getBoundingClientRect();
+          vt.applyConstraints({advanced:[{pointsOfInterest:[{x:(t.clientX-rect.left)/rect.width,y:(t.clientY-rect.top)/rect.height}],focusMode:'single-shot'}]});
+        }
+      }catch(e){}
+    }
+  },{passive:true});
+
+  // ── SWIPE GESTURES ──
+  viewfinder.addEventListener('touchstart',e=>{
+    if(e.touches.length===1){swipeStartX=e.touches[0].clientX;swipeStartY=e.touches[0].clientY;}
+    if(e.touches.length===2) pinchDist0=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+  },{passive:true});
+
+  viewfinder.addEventListener('touchmove',e=>{
+    if(e.touches.length===2){
+      const nd=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+      const delta=(nd-pinchDist0)*0.008;
+      if(Math.abs(delta)>0.04){currentZoom=Math.round(Math.min(maxZoom,Math.max(minZoom,currentZoom+delta))*10)/10;applyZoomNow();pinchDist0=nd;}
+    }
+  },{passive:true});
+
+  viewfinder.addEventListener('touchend',e=>{
+    if(e.changedTouches.length!==1) return;
+    const dx=e.changedTouches[0].clientX-swipeStartX;
+    const dy=e.changedTouches[0].clientY-swipeStartY;
+    const adx=Math.abs(dx), ady=Math.abs(dy);
+    if(adx<15&&ady<15) return; // pure tap, handled above
+    if(adx>ady&&adx>50){
+      if(dx<0){sndTick();setPreset(-90);showHint('↔ Landscape',1000);}
+      else{sndTick();setPreset(0);showHint('↕ Portrait',1000);}
+    } else if(ady>adx&&ady>50){
+      if(dy<0) zoomStep(0.5);
+      else if(dy>90){showHint('⏹ Stopping & Saving...',1500);fadeAndStop(()=>{showResult();setTimeout(shareMain,700);});}
+    }
+  },{passive:true});
+
+  // ── TOUCH ZONES ──
+  document.getElementById('zone-left').addEventListener('pointerdown',e=>{
+    e.stopPropagation();
+    const z=document.getElementById('zone-left');
+    z.classList.add('zone-flash');setTimeout(()=>z.classList.remove('zone-flash'),300);
+    if(!isRecording&&!countdownActive) fullRollSequence();
+    else showHint('Already rolling — say "Stop"',1000);
+  });
+  document.getElementById('zone-right').addEventListener('pointerdown',e=>{
+    e.stopPropagation();
+    const z=document.getElementById('zone-right');
+    z.classList.add('zone-flash');setTimeout(()=>z.classList.remove('zone-flash'),300);
+    snapStill();showHint('📷 Still!',800);
+  });
+
+  // ── ZOOM ──
+  function zoomStep(delta){
+    currentZoom=Math.round(Math.min(maxZoom,Math.max(minZoom,currentZoom+delta))*10)/10;
+    applyZoomNow();sndZoom(delta);
+  }
+  function applyZoomNow(){
+    try{const vt=stream&&stream.getVideoTracks()[0];if(vt&&vt.getCapabilities&&vt.getCapabilities().zoom)vt.applyConstraints({advanced:[{zoom:currentZoom}]});}catch(e){}
+    applyTransform();
+    zoomBadge.textContent=currentZoom.toFixed(1)+'x';zoomBadge.classList.add('show');
+    clearTimeout(zoomTimer);zoomTimer=setTimeout(()=>zoomBadge.classList.remove('show'),1500);
+  }
+
+  // ── DUAL ──
+  window.toggleDual = function(){
+    if(isRecording){showHint('Stop recording first',1500);return;}
+    dualFormat=!dualFormat;
+    const btn=document.getElementById('btn-dual');
+    btn.classList.toggle('active',dualFormat);
+    btn.querySelector('.top-btn-label').textContent=dualFormat?'Land+Port ✓':'Land+Port';
+    dualInd.classList.toggle('show',dualFormat);
+    sndTick();
+    showHint(dualFormat?'Dual format ON\nSaves BOTH landscape + portrait':'Dual format OFF\nSaves landscape only',2500);
+  };
+
+  // ── SQUARES ANIMATION ──
+  function showSquaresAnimation(){
+    return new Promise(resolve=>{
+      sqOverlay.classList.add('show');
+      sqOverlay.style.opacity='1';sqOverlay.style.transition='';
+      const corners=sqOverlay.querySelectorAll('.sq-corner');
+      corners.forEach(c=>c.classList.remove('animate'));
+      setTimeout(()=>{
+        corners.forEach((c,i)=>setTimeout(()=>c.classList.add('animate'),i*55));
+      },30);
+      setTimeout(()=>{
+        sqOverlay.style.transition='opacity 0.4s';
+        sqOverlay.style.opacity='0';
+        setTimeout(()=>{
+          sqOverlay.classList.remove('show');
+          sqOverlay.style.opacity='';sqOverlay.style.transition='';
+          corners.forEach(c=>c.classList.remove('animate'));
+          resolve();
+        },400);
+      },1000);
+    });
+  }
+
+  // ── COUNTDOWN ──
+  function runCountdown(){
+    return new Promise(resolve=>{
+      countdown.classList.add('show');
+      let n=3;
+      function tick(){
+        cdNum.textContent=n;
+        cdNum.style.animation='none';void cdNum.offsetWidth;
+        cdNum.style.animation='cdpulse 0.9s ease-in-out';
+        sndCountdown();n--;
+        if(n>0) setTimeout(tick,900);
+        else setTimeout(()=>{countdown.classList.remove('show');resolve();},900);
+      }
+      tick();
+    });
+  }
+
+  // ── FULL ROLL SEQUENCE ──
+  async function fullRollSequence(){
+    if(countdownActive||isRecording) return;
+    countdownActive=true;
+    await showSquaresAnimation();
+    await runCountdown();
+    countdownActive=false;
+    startRecording();
+  }
+
+  // ── SELFIE SEQUENCE ──
+  async function selfieSequence(){
+    if(countdownActive||isRecording) return;
+    countdownActive=true;
+    facingMode='user';
+    await window.startCamera();
+    await new Promise(r=>setTimeout(r,600));
+    showHint('🤳 Selfie — get ready!',900);
+    await new Promise(r=>setTimeout(r,1000));
+    await showSquaresAnimation();
+    await runCountdown();
+    countdownActive=false;
+    startRecording();
+  }
+
+  // ── RECORDING ──
+  function startRecording(){
+    if(!stream||isRecording) return;
+    sndRoll();
+    landChunks=[];portChunks=[];stillUrls=[];pendingStops=0;mp4Blob=null;
+
+    const vw=preview.videoWidth||1280, vh=preview.videoHeight||720;
+    const absR=Math.abs(((rotation%360)+360)%360);
+    const transposed=absR===90||absR===270;
+    const wmText=`OrientCam © ${OWNER}`;
+
+    // LANDSCAPE canvas — rotated
+    recCanvas.width=transposed?vh:vw;
+    recCanvas.height=transposed?vw:vh;
+    recCtx=recCanvas.getContext('2d');
+
+    // PORTRAIT canvas — raw centre crop, NO rotation
+    if(dualFormat){
+      portCanvas.width=Math.min(Math.round(vh*9/16),vw);
+      portCanvas.height=vh;
+      portCtx=portCanvas.getContext('2d');
+    }
+
+    drawInterval=setInterval(()=>{
+      if(!preview.videoWidth) return;
+      const mx=(facingMode==='user')?-1:1;
+
+      // LANDSCAPE — full rotation applied
+      recCtx.save();
+      recCtx.clearRect(0,0,recCanvas.width,recCanvas.height);
+      recCtx.translate(recCanvas.width/2,recCanvas.height/2);
+      recCtx.rotate(rotation*Math.PI/180);
+      recCtx.scale(mirrored?-mx:mx,1);
+      recCtx.drawImage(preview,-vw/2,-vh/2,vw,vh);
+      recCtx.restore();
+      recCtx.save();recCtx.font='bold 14px -apple-system,sans-serif';recCtx.fillStyle='rgba(255,255,255,0.15)';recCtx.textAlign='right';recCtx.fillText(wmText,recCanvas.width-10,recCanvas.height-10);recCtx.restore();
+
+      // PORTRAIT — raw video, centre crop only, NO rotation
+      if(dualFormat&&portCtx){
+        const cropX=Math.max(0,Math.round((vw-portCanvas.width)/2));
+        portCtx.clearRect(0,0,portCanvas.width,portCanvas.height);
+        if(facingMode==='user'){
+          // Mirror front camera portrait correctly
+          portCtx.save();portCtx.translate(portCanvas.width,0);portCtx.scale(-1,1);
+          portCtx.drawImage(preview,cropX,0,portCanvas.width,vh,0,0,portCanvas.width,vh);
+          portCtx.restore();
+        } else {
+          portCtx.drawImage(preview,cropX,0,portCanvas.width,vh,0,0,portCanvas.width,vh);
+        }
+        portCtx.save();portCtx.font='bold 12px -apple-system,sans-serif';portCtx.fillStyle='rgba(255,255,255,0.15)';portCtx.textAlign='right';portCtx.fillText(wmText,portCanvas.width-8,portCanvas.height-8);portCtx.restore();
+      }
+    },FRAME_MS);
+
+    const mime=MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')?'video/webm;codecs=vp8,opus':
+               MediaRecorder.isTypeSupported('video/webm')?'video/webm':'video/mp4';
+    const audioTrack=stream.getAudioTracks()[0];
+
+    const lStream=recCanvas.captureStream(FPS);
+    if(audioTrack) lStream.addTrack(audioTrack);
+    landRecorder=new MediaRecorder(lStream,{mimeType:mime,videoBitsPerSecond:BITRATE});
+    landRecorder.ondataavailable=e=>{if(e.data&&e.data.size>0)landChunks.push(e.data);};
+    landRecorder.start(CHUNK_MS);pendingStops++;
+
+    if(dualFormat){
+      const pStream=portCanvas.captureStream(FPS);
+      if(audioTrack) pStream.addTrack(audioTrack.clone());
+      portRecorder=new MediaRecorder(pStream,{mimeType:mime,videoBitsPerSecond:Math.round(BITRATE*0.6)});
+      portRecorder.ondataavailable=e=>{if(e.data&&e.data.size>0)portChunks.push(e.data);};
+      portRecorder.start(CHUNK_MS);pendingStops++;
+    }
+
+    isRecording=true;shotCount++;
+    shotCounter.textContent=`Shot ${shotCount}`;shotCounter.classList.add('show');
+    recBadge.classList.add('show');recSecs=0;
+    recTimerId=setInterval(()=>{recSecs++;recTimeEl.textContent=String(Math.floor(recSecs/60)).padStart(2,'0')+':'+String(recSecs%60).padStart(2,'0');},1000);
+  }
+
+  function stopRecording(cb){
+    if(!isRecording) return;
+    sndStop();
+    clearInterval(drawInterval);drawInterval=null;
+    clearInterval(recTimerId);
+    isRecording=false;recBadge.classList.remove('show');
+
+    function onDone(){
+      pendingStops--;if(pendingStops>0) return;
+      landBlob=new Blob(landChunks,{type:landChunks[0]?.type||'video/webm'});
+      portBlob=dualFormat&&portChunks.length>0?new Blob(portChunks,{type:portChunks[0]?.type||'video/webm'}):null;
+      if(cb) cb(); else showResult();
+    }
+    landRecorder.onstop=onDone;landRecorder.stop();
+    if(dualFormat&&portRecorder&&portRecorder.state!=='inactive'){portRecorder.onstop=onDone;portRecorder.stop();}
+  }
+
+  function fadeAndStop(cb){
+    fadeOv.classList.add('fading');
+    setTimeout(()=>{
+      stopRecording(()=>{
+        setTimeout(()=>{fadeOv.classList.remove('fading');if(cb)cb();},300);
+      });
+    },400);
+  }
+
+  function showResult(){
+    // Single view (landscape)
+    resultVideo.src=URL.createObjectURL(landBlob);
+    resultVideo.style.display='block';
+
+    // Dual preview
+    if(dualFormat&&portBlob){
+      document.getElementById('dual-land-vid').src=URL.createObjectURL(landBlob);
+      document.getElementById('dual-port-vid').src=URL.createObjectURL(portBlob);
+      dualRow.classList.add('show');
+      resultVideo.style.display='none'; // hide single, show dual
+    } else {
+      dualRow.classList.remove('show');
+    }
+
+    resultFiles.innerHTML='';
+    const rotLabel=rotation===0?'Portrait':rotation===-90||rotation===270?'Landscape ←':rotation===90?'Landscape →':'Custom';
+    resultFiles.innerHTML+=`<div class="result-file"><div class="rf-label">Primary</div><div class="rf-val">${(landBlob.size/1048576).toFixed(1)} MB · ${recSecs}s<br><span style="font-size:9px;color:var(--muted)">${rotLabel}</span></div></div>`;
+    if(dualFormat&&portBlob){
+      resultFiles.innerHTML+=`<div class="result-file"><div class="rf-label">Portrait</div><div class="rf-val">${(portBlob.size/1048576).toFixed(1)} MB · ${recSecs}s<br><span style="font-size:9px;color:var(--muted)">Centre crop</span></div></div>`;
+      document.getElementById('btn-share-both').style.display='flex';
+    } else {
+      document.getElementById('btn-share-both').style.display='none';
+    }
+    if(stillUrls.length>0){
+      resultFiles.innerHTML+=`<div class="result-file"><div class="rf-label">Stills</div><div class="rf-val">${stillUrls.length} photo${stillUrls.length>1?'s':''}</div></div>`;
+    }
+    convRow.classList.remove('show');
+    document.getElementById('btn-convert').textContent='⚙ MP4';document.getElementById('btn-convert').style.cssText='';
+    document.getElementById('btn-share').textContent='↑ Share';
+    resultArea.classList.add('show');
+  }
+
+  // ── BACK TO CAMERA — KEY FIX: always restart stream ──
+  window.backToCamera = async function(){
+    resultArea.classList.remove('show');
+    landBlob=null;portBlob=null;mp4Blob=null;
+    stillUrls=[];landChunks=[];portChunks=[];
+    resultVideo.src='';resultVideo.style.display='block';
+    dualRow.classList.remove('show');
+    // Restart stream so camera is not blank
+    await window.startCamera();
+    showHint('Camera ready — say "Roll"',2000);
+  };
+
+  // ── MP4 CONVERSION ──
+  window.convertToMp4 = async function(){
+    convLabel.textContent='Loading converter...';convRow.classList.add('show');convBar.style.width='5%';
+    try{
+      if(!window.FFmpeg) await loadScript('https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js');
+      const{createFFmpeg,fetchFile}=window.FFmpeg;
+      const ff=createFFmpeg({log:false});
+      convLabel.textContent='Converting to MP4...';
+      await ff.load();convBar.style.width='20%';
+      ff.FS('writeFile','in.webm',await fetchFile(landBlob));convBar.style.width='35%';
+      ff.setProgress(({ratio})=>{convBar.style.width=Math.round(35+ratio*55)+'%';});
+      await ff.run('-i','in.webm','-c:v','libx264','-preset','ultrafast','-crf','30','-c:a','aac','-b:a','128k','out.mp4');
+      convBar.style.width='100%';
+      const data=ff.FS('readFile','out.mp4');
+      mp4Blob=new Blob([data.buffer],{type:'video/mp4'});
+      convLabel.textContent=`✓ MP4 ready — ${(mp4Blob.size/1048576).toFixed(1)} MB`;
+      resultVideo.src=URL.createObjectURL(mp4Blob);resultVideo.style.display='block';dualRow.classList.remove('show');
+      const btn=document.getElementById('btn-convert');
+      btn.textContent='✓ MP4';btn.style.background='var(--green)';btn.style.color='#000';
+      document.getElementById('btn-share').textContent='↑ Share MP4';
+    }catch(e){convLabel.textContent='MP4 failed — share webm directly';setTimeout(()=>convRow.classList.remove('show'),2500);}
+  };
+
+  function loadScript(src){
+    return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);});
+  }
+
+  // ── SHARE — improved reliability ──
+  window.shareMain = async function(){
+    sndPing();
+    const blob=mp4Blob||landBlob;
+    const ext=mp4Blob?'mp4':'webm';
+    await doShare([blob],[`orientcam_v${APP_VERSION}_landscape.${ext}`]);
+  };
+
+  window.shareBoth = async function(){
+    sndPing();
+    const lBlob=mp4Blob||landBlob,ext=mp4Blob?'mp4':'webm';
+    const bl=[lBlob],nm=[`orientcam_v${APP_VERSION}_landscape.${ext}`];
+    if(portBlob){bl.push(portBlob);nm.push(`orientcam_v${APP_VERSION}_portrait.webm`);}
+    await doShare(bl,nm);
+  };
+
+  async function doShare(blobs,names){
+    // Build file array
+    const files=[];
+    for(let i=0;i<blobs.length;i++){
+      files.push(new File([blobs[i]],names[i],{type:blobs[i].type}));
+    }
+    // Add stills
+    for(let i=0;i<stillUrls.length;i++){
+      try{const r=await fetch(stillUrls[i]);const b=await r.blob();files.push(new File([b],`still_${i+1}.jpg`,{type:'image/jpeg'}));}catch(e){}
+    }
+
+    // Try native share sheet
+    if(navigator.share&&navigator.canShare){
+      try{
+        if(navigator.canShare({files})){
+          await navigator.share({files,title:`OrientCam v${APP_VERSION} © ${OWNER}`});
+          // SUCCESS — return to camera
+          setTimeout(window.backToCamera,300);
+          return;
+        }
+      }catch(e){
+        if(e.name==='AbortError'){
+          // User cancelled — stay on result screen so they can try again
+          return;
+        }
+        // Other error — fall through to download
+      }
+    }
+
+    // Fallback — download files one by one
+    showHint('Downloading to Files app...',3000);
+    for(let i=0;i<blobs.length;i++){
+      await new Promise(r=>setTimeout(r,i*600));
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blobs[i]);a.download=names[i];
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+    }
+    for(let i=0;i<stillUrls.length;i++){
+      await new Promise(r=>setTimeout(r,(blobs.length+i)*600));
+      const a=document.createElement('a');
+      a.href=stillUrls[i];a.download=`still_${i+1}.jpg`;
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+    }
+    setTimeout(window.backToCamera,1200);
+  }
+
+  // ── SNAP STILL ──
+  function snapStill(){
+    if(!stream) return;
+    sndShutter();
+    flashOv.classList.add('flash');setTimeout(()=>flashOv.classList.remove('flash'),150);
+    const vw=preview.videoWidth||1280, vh=preview.videoHeight||720;
+    const absR=Math.abs(((rotation%360)+360)%360);
+    const transposed=absR===90||absR===270;
+    snapCanvas.width=transposed?vh:vw;snapCanvas.height=transposed?vw:vh;
+    const ctx=snapCanvas.getContext('2d');
+    ctx.save();ctx.translate(snapCanvas.width/2,snapCanvas.height/2);ctx.rotate(rotation*Math.PI/180);
+    const mx=(facingMode==='user')?-1:1;ctx.scale(mirrored?-mx:mx,1);
+    ctx.drawImage(preview,-vw/2,-vh/2,vw,vh);ctx.restore();
+    ctx.font='bold 13px -apple-system,sans-serif';ctx.fillStyle='rgba(255,255,255,0.18)';ctx.textAlign='right';ctx.fillText(`OrientCam © ${OWNER}`,snapCanvas.width-8,snapCanvas.height-8);
+    snapCanvas.toBlob(blob=>{
+      if(blob){stillUrls.push(URL.createObjectURL(blob));showHint(`📷 Still #${stillUrls.length}`,800);}
+    },'image/jpeg',0.93);
+  }
+
+  // ── GRID ──
+  window.toggleGrid = function(){
+    sndTick();gridOn=!gridOn;
+    gridCanvas.classList.toggle('show',gridOn);
+    if(gridOn) drawGrid();
+  };
+  function drawGrid(){
+    gridCanvas.width=window.innerWidth;gridCanvas.height=window.innerHeight;
+    const ctx=gridCanvas.getContext('2d');
+    ctx.clearRect(0,0,gridCanvas.width,gridCanvas.height);
+    ctx.strokeStyle='rgba(255,255,255,0.22)';ctx.lineWidth=0.8;
+    for(let i=1;i<3;i++){
+      ctx.beginPath();ctx.moveTo(gridCanvas.width*i/3,0);ctx.lineTo(gridCanvas.width*i/3,gridCanvas.height);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(0,gridCanvas.height*i/3);ctx.lineTo(gridCanvas.width,gridCanvas.height*i/3);ctx.stroke();
+    }
+  }
+
+  // ── VOICE ──
+  window.toggleVoice = function(){voiceActive?stopVoice():startVoice();};
+  function startVoice(){
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR){showHint('Voice not supported on this browser',2000);return;}
+    document.querySelectorAll('.cmd-chip').forEach(c=>c.classList.remove('used','heard'));
+    recognition=new SR();
+    recognition.continuous=true;recognition.interimResults=true;recognition.lang='en-US';recognition.maxAlternatives=1;
+    recognition.onstart=()=>{voiceActive=true;document.getElementById('mic-btn').classList.add('active');voiceSheet.classList.add('open');sndPing();};
+    recognition.onresult=e=>{
+      for(let i=e.resultIndex;i<e.results.length;i++){
+        const text=e.results[i][0].transcript.toLowerCase().trim();
+        if(text.length<2) continue;
+        const now=Date.now(),cmd=getCmd(text);
+        if(cmd&&cmd===lastCmd&&(now-lastCmdTime)<800) continue;
+        if(cmd){lastCmd=cmd;lastCmdTime=now;handleCmd(cmd);break;}
+      }
+    };
+    recognition.onerror=e=>{if(e.error==='not-allowed'){showHint('Mic access denied',2000);stopVoice();}};
+    recognition.onend=()=>{if(voiceActive)recognition.start();};
+    recognition.start();
+  }
+  function stopVoice(){
+    voiceActive=false;if(recognition){recognition.abort();recognition=null;}
+    document.getElementById('mic-btn').classList.remove('active');
+    voiceSheet.classList.remove('open');sndPop();
+  }
+  window.stopVoice=stopVoice;
+
+  function getCmd(t){
+    if(t.includes('roll')||t.includes('action')||t.includes('start')) return 'roll';
+    if(t.includes('selfie')) return 'selfie';
+    if(t.includes('stop')||t.includes('cut')) return 'stop';
+    if(t.includes('save')||t.includes('share')) return 'save';
+    if(t.includes('still')||t.includes('snap')||t.includes('photo')) return 'stills';
+    if(t.includes('zoom in')||t.includes('closer')) return 'zoomin';
+    if(t.includes('zoom out')||t.includes('wider')) return 'zoomout';
+    if(t.includes('landscape')||t.includes('wide')) return 'landscape';
+    if(t.includes('portrait')||t.includes('vertical')) return 'portrait';
+    if(t.includes('flip')) return 'flip';
+    if(t.includes('front')) return 'front';
+    if(t.includes('back')||t.includes('rear')) return 'back';
+    if(t.includes('grid')) return 'grid';
+    return null;
+  }
+
+  function flashChip(id,keep){
+    const c=document.getElementById(id);if(!c)return;
+    c.classList.add('heard');
+    setTimeout(()=>keep?c.classList.remove('heard'):c.classList.add('used'),400);
+  }
+
+  function showHeard(text){
+    heardBadge.textContent='✓ '+text;heardBadge.classList.add('show');
+    clearTimeout(heardTimer);heardTimer=setTimeout(()=>heardBadge.classList.remove('show'),1200);
+  }
+
+  function handleCmd(cmd){
+    const labels={roll:'Roll',selfie:'Selfie',stop:'Stop',save:'Save',stills:'Stills',zoomin:'Zoom In',zoomout:'Zoom Out',landscape:'Landscape',portrait:'Portrait',flip:'Flip',front:'Front',back:'Back',grid:'Grid'};
+    showHeard(labels[cmd]||cmd);
+    switch(cmd){
+      case 'roll':
+        flashChip('chip-roll',true);
+        if(!isRecording&&!countdownActive) fullRollSequence();break;
+      case 'selfie':
+        flashChip('chip-selfie',true);selfieSequence();break;
+      case 'stop':
+        flashChip('chip-stop',true);
+        if(isRecording) fadeAndStop();break;
+      case 'save':
+        sndPing();flashChip('chip-save',true);
+        if(isRecording) fadeAndStop(()=>{showResult();setTimeout(window.shareMain,700);});
+        else if(landBlob) window.shareMain();break;
+      case 'stills':
+        flashChip('chip-stills',true);snapStill();break;
+      case 'zoomin':
+        flashChip('chip-zin',true);zoomStep(0.5);break;
+      case 'zoomout':
+        flashChip('chip-zout',true);zoomStep(-0.5);break;
+      case 'landscape':
+        sndTick();flashChip('chip-land',false);setPreset(-90);showHint('↔ Landscape',1000);break;
+      case 'portrait':
+        sndTick();flashChip('chip-port',false);setPreset(0);showHint('↕ Portrait',1000);break;
+      case 'flip':
+        sndTick();flashChip('chip-flip',false);
+        rotation=rotation===0?-90:0;applyTransform();break;
+      case 'front':
+        sndPop();flashChip('chip-front',true);
+        facingMode='user';if(stream){stream.getTracks().forEach(t=>t.stop());window.startCamera();}break;
+      case 'back':
+        sndPop();flashChip('chip-back',true);
+        facingMode='environment';if(stream){stream.getTracks().forEach(t=>t.stop());window.startCamera();}break;
+      case 'grid':
+        sndTick();flashChip('chip-grid',true);window.toggleGrid();break;
+    }
+  }
+
+  window.addEventListener('resize',()=>{applyTransform();if(gridOn)drawGrid();});
+
+  // ── AUTO-UPDATE ──
+  const CURRENT_VERSION='2.2';
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').then(reg=>{
+      if(reg.waiting) showUpdateBanner(reg.waiting);
+      reg.addEventListener('updatefound',()=>{
+        const nw=reg.installing;
+        nw.addEventListener('statechange',()=>{if(nw.state==='installed'&&navigator.serviceWorker.controller)showUpdateBanner(nw);});
+      });
+    }).catch(()=>{});
+    navigator.serviceWorker.addEventListener('message',e=>{if(e.data&&e.data.type==='SW_UPDATED'&&e.data.version!==CURRENT_VERSION)window.location.reload(true);});
+    let refreshing=false;
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!refreshing){refreshing=true;window.location.reload(true);}});
+  }
+  async function checkVersion(){
+    try{
+      const res=await fetch('version.json?t='+Date.now(),{cache:'no-store'});
+      if(!res.ok)return;
+      const data=await res.json();
+      if(data.version&&data.version!==CURRENT_VERSION){
+        document.getElementById('upd-sub').textContent=`v${CURRENT_VERSION} → v${data.version} · Tap to update`;
+        document.getElementById('update-banner').classList.add('show');
       }
     }catch(e){}
   }
-},{passive:true});
+  setTimeout(checkVersion,3000);setInterval(checkVersion,5*60*1000);
 
-// ── SWIPE GESTURES ──
-viewfinder.addEventListener('touchstart',e=>{
-  if(e.touches.length===1){swipeStartX=e.touches[0].clientX;swipeStartY=e.touches[0].clientY;}
-  if(e.touches.length===2)pinchDist0=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
-},{passive:true});
-
-let pinchDist0=0;
-viewfinder.addEventListener('touchmove',e=>{
-  if(e.touches.length===2){
-    const nd=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
-    const delta=(nd-pinchDist0)*0.008;
-    if(Math.abs(delta)>0.04){currentZoom=Math.round(Math.min(maxZoom,Math.max(minZoom,currentZoom+delta))*10)/10;applyZoomNow();pinchDist0=nd;}
-  }
-},{passive:true});
-
-viewfinder.addEventListener('touchend',e=>{
-  if(e.changedTouches.length!==1)return;
-  const dx=e.changedTouches[0].clientX-swipeStartX;
-  const dy=e.changedTouches[0].clientY-swipeStartY;
-  const adx=Math.abs(dx),ady=Math.abs(dy);
-  if(adx<15&&ady<15)return; // pure tap handled above
-  if(adx>ady&&adx>50){
-    // Horizontal swipe
-    if(dx<0){// swipe left = landscape anti-clockwise
-      sndTick();setPreset(-90);showHint('↔ Landscape',1000);
-    }else{// swipe right = portrait
-      sndTick();setPreset(0);showHint('↕ Portrait',1000);
-    }
-  } else if(ady>adx&&ady>50){
-    if(dy<0){// swipe up = zoom in
-      zoomStep(0.5);
-    }else if(dy>90){// swipe down = stop+save
-      showHint('⏹ Stopping + Saving...',1500);
-      stopThenFadeAndShare();
-    }
-  }
-},{passive:true});
-
-// ── ZOOM ──
-function zoomStep(delta){
-  currentZoom=Math.round(Math.min(maxZoom,Math.max(minZoom,currentZoom+delta))*10)/10;
-  applyZoomNow();sndZoom(delta);
-}
-function applyZoomNow(){
-  try{const vt=stream&&stream.getVideoTracks()[0];if(vt&&vt.getCapabilities&&vt.getCapabilities().zoom)vt.applyConstraints({advanced:[{zoom:currentZoom}]});}catch(e){}
-  applyTransform();
-  zoomBadge.textContent=currentZoom.toFixed(1)+'x';zoomBadge.classList.add('show');
-  clearTimeout(zoomTimer);zoomTimer=setTimeout(()=>zoomBadge.classList.remove('show'),1500);
-}
-
-// ── LETTERBOX ──
-function toggleLetterbox(){
-  letterbox=!letterbox;viewfinder.classList.toggle('letterbox',letterbox);
-  document.getElementById('btn-lb').classList.toggle('active',letterbox);
-  sndTick();showHint(letterbox?'🎞 Cinema ON':'Cinema OFF',1200);
-}
-
-// ── DUAL ──
-function toggleDual(){
-  if(isRecording){showHint('Stop first',1200);return;}
-  dualFormat=!dualFormat;
-  const btn=document.getElementById('btn-dual');
-  btn.classList.toggle('active',dualFormat);
-  btn.querySelector('.top-btn-label').textContent=dualFormat?'Dual ✓':'Dual';
-  dualInd.classList.toggle('show',dualFormat);
-  sndTick();
-  showHint(dualFormat?'Dual ON\nLandscape + Portrait saved separately':'Dual OFF\nLandscape only',2000);
-}
-
-// ── OPENING SQUARES ANIMATION ──
-function showSquaresAnimation(){
-  return new Promise(resolve=>{
-    sqOverlay.classList.add('show');
-    const corners=sqOverlay.querySelectorAll('.sq-corner');
-    // Reset
-    corners.forEach(c=>c.classList.remove('animate'));
-    // Stagger animate in
-    setTimeout(()=>{
-      corners.forEach((c,i)=>setTimeout(()=>c.classList.add('animate'),i*60));
-    },50);
-    // Hold then fade out
-    setTimeout(()=>{
-      sqOverlay.style.opacity='0';sqOverlay.style.transition='opacity 0.4s';
-      setTimeout(()=>{
-        sqOverlay.classList.remove('show');
-        sqOverlay.style.opacity='';sqOverlay.style.transition='';
-        corners.forEach(c=>c.classList.remove('animate'));
-        resolve();
-      },400);
-    },1000);
-  });
-}
-
-// ── COUNTDOWN ──
-function runCountdown(){
-  return new Promise(resolve=>{
-    countdown.classList.add('show');
-    let n=3;
-    function tick(){
-      cdNum.textContent=n;
-      cdNum.style.animation='none';void cdNum.offsetWidth;
-      cdNum.style.animation='cdpulse 0.9s ease-in-out';
-      sndCountdown();n--;
-      if(n>0)setTimeout(tick,900);
-      else setTimeout(()=>{countdown.classList.remove('show');resolve();},900);
-    }
-    tick();
-  });
-}
-
-// ── FULL ROLL SEQUENCE: squares → countdown → record ──
-async function fullRollSequence(){
-  if(countdownActive||isRecording)return;
-  countdownActive=true;
-  await showSquaresAnimation();
-  await runCountdown();
-  countdownActive=false;
-  startRecording();
-}
-
-// ── SELFIE MODE: switch front camera → squares → countdown → record ──
-async function selfieSequence(){
-  if(countdownActive||isRecording)return;
-  countdownActive=true;
-  facingMode='user';
-  await startCamera(); // switch to front
-  showHint('🤳 Selfie — get ready!',1000);
-  await new Promise(r=>setTimeout(r,800));
-  await showSquaresAnimation();
-  await runCountdown();
-  countdownActive=false;
-  startRecording();
-}
-
-// ── RECORDING ──
-function startRecording(){
-  if(!stream||isRecording)return;
-  sndRoll();
-  landChunks=[];portChunks=[];stillUrls=[];pendingStops=0;mp4Blob=null;
-
-  const vw=preview.videoWidth||1280,vh=preview.videoHeight||720;
-  const absR=Math.abs(((rotation%360)+360)%360);
-  const transposed=absR===90||absR===270;
-  const wmText=`OrientCam © ${OWNER}`;
-
-  // ── LANDSCAPE CANVAS — rotated ──
-  recCanvas.width=transposed?vh:vw;
-  recCanvas.height=transposed?vw:vh;
-  recCtx=recCanvas.getContext('2d');
-
-  // ── PORTRAIT CANVAS — KEY FIX v2.1 ──
-  // Draw directly from raw video — NO rotation applied
-  // Centre crop to 9:16 portrait from original video dimensions
-  if(dualFormat){
-    portCanvas.width=Math.round(vh*9/16);
-    portCanvas.height=vh;
-    portCtx=portCanvas.getContext('2d');
+  function showUpdateBanner(sw){
+    const b=document.getElementById('update-banner');
+    document.getElementById('upd-sub').textContent='New version ready — tap to apply';
+    b.classList.add('show');b._waitingSW=sw;
   }
 
-  // Single interval draws BOTH canvases
-  drawInterval=setInterval(()=>{
-    if(!preview.videoWidth)return;
+}); // END DOMContentLoaded
 
-    // LANDSCAPE — apply rotation transform
-    recCtx.save();
-    recCtx.clearRect(0,0,recCanvas.width,recCanvas.height);
-    recCtx.translate(recCanvas.width/2,recCanvas.height/2);
-    recCtx.rotate(rotation*Math.PI/180);
-    const mx=(facingMode==='user')?-1:1;
-    recCtx.scale(mirrored?-mx:mx,1);
-    recCtx.drawImage(preview,-vw/2,-vh/2,vw,vh);
-    recCtx.restore();
-    // Watermark landscape
-    recCtx.save();recCtx.font='bold 14px -apple-system,sans-serif';recCtx.fillStyle='rgba(255,255,255,0.18)';recCtx.textAlign='right';recCtx.fillText(wmText,recCanvas.width-10,recCanvas.height-10);recCtx.restore();
-
-    // PORTRAIT — draw raw video, centre crop, NO rotation
-    if(dualFormat&&portCtx){
-      const cropX=Math.max(0,Math.round((vw-portCanvas.width)/2));
-      portCtx.clearRect(0,0,portCanvas.width,portCanvas.height);
-      // Mirror if front camera
-      if(facingMode==='user'){
-        portCtx.save();portCtx.scale(-1,1);portCtx.drawImage(preview,-(cropX+portCanvas.width),0,portCanvas.width,vh,0,0,portCanvas.width,vh);portCtx.restore();
-      }else{
-        portCtx.drawImage(preview,cropX,0,portCanvas.width,vh,0,0,portCanvas.width,vh);
-      }
-      // Watermark portrait
-      portCtx.save();portCtx.font='bold 12px -apple-system,sans-serif';portCtx.fillStyle='rgba(255,255,255,0.18)';portCtx.textAlign='right';portCtx.fillText(wmText,portCanvas.width-8,portCanvas.height-8);portCtx.restore();
-    }
-  },FRAME_MS);
-
-  const mime=MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')?'video/webm;codecs=vp8,opus':MediaRecorder.isTypeSupported('video/webm')?'video/webm':'video/mp4';
-  const audioTrack=stream.getAudioTracks()[0];
-
-  // Landscape recorder
-  const lStream=recCanvas.captureStream(FPS);
-  if(audioTrack)lStream.addTrack(audioTrack);
-  landRecorder=new MediaRecorder(lStream,{mimeType:mime,videoBitsPerSecond:BITRATE});
-  landRecorder.ondataavailable=e=>{if(e.data&&e.data.size>0)landChunks.push(e.data);};
-  landRecorder.start(CHUNK_MS);pendingStops++;
-
-  // Portrait recorder
-  if(dualFormat){
-    const pStream=portCanvas.captureStream(FPS);
-    if(audioTrack)pStream.addTrack(audioTrack.clone());
-    portRecorder=new MediaRecorder(pStream,{mimeType:mime,videoBitsPerSecond:Math.round(BITRATE*0.6)});
-    portRecorder.ondataavailable=e=>{if(e.data&&e.data.size>0)portChunks.push(e.data);};
-    portRecorder.start(CHUNK_MS);pendingStops++;
-  }
-
-  isRecording=true;shotCount++;
-  shotCounter.textContent=`Shot ${shotCount}`;shotCounter.classList.add('show');
-  recBadge.classList.add('show');recSecs=0;
-  recTimerId=setInterval(()=>{recSecs++;recTimeEl.textContent=String(Math.floor(recSecs/60)).padStart(2,'0')+':'+String(recSecs%60).padStart(2,'0');},1000);
+// Global functions called from HTML onclick
+function doUpdate(){
+  document.querySelector('.upd-text').textContent='⏳ Updating...';
+  document.querySelector('.upd-btn').textContent='Please wait';
+  const b=document.getElementById('update-banner');
+  if(b._waitingSW){b._waitingSW.postMessage({type:'SKIP_WAITING'});return;}
+  if('caches' in window){caches.keys().then(keys=>{Promise.all(keys.map(k=>caches.delete(k))).then(()=>window.location.reload(true));});}
+  else window.location.reload(true);
 }
-
-// ── STOP WITH FADE ──
-function stopRecording(cb){
-  if(!isRecording)return;
-  sndStop();
-  clearInterval(drawInterval);drawInterval=null;
-  clearInterval(recTimerId);
-  isRecording=false;recBadge.classList.remove('show');
-
-  function onDone(){
-    pendingStops--;if(pendingStops>0)return;
-    landBlob=new Blob(landChunks,{type:landChunks[0]?.type||'video/webm'});
-    portBlob=dualFormat&&portChunks.length>0?new Blob(portChunks,{type:portChunks[0]?.type||'video/webm'}):null;
-    if(cb)cb();else showResult();
-  }
-  landRecorder.onstop=onDone;landRecorder.stop();
-  if(dualFormat&&portRecorder&&portRecorder.state!=='inactive'){portRecorder.onstop=onDone;portRecorder.stop();}
-}
-
-// ── FADE THEN STOP ──
-function fadeAndStop(cb){
-  fadeOv.classList.add('fading');
-  setTimeout(()=>{
-    stopRecording(()=>{
-      setTimeout(()=>{fadeOv.classList.remove('fading');if(cb)cb();},300);
-    });
-  },400);
-}
-
-function stopThenFadeAndShare(){
-  if(isRecording){fadeAndStop(()=>{showResult();setTimeout(shareMain,600);});}
-  else if(landBlob){shareMain();}
-}
-
-function showResult(){
-  // Single video preview
-  resultVideo.src=URL.createObjectURL(landBlob);
-  // Dual preview
-  if(dualFormat&&portBlob){
-    document.getElementById('dual-land-vid').src=URL.createObjectURL(landBlob);
-    document.getElementById('dual-port-vid').src=URL.createObjectURL(portBlob);
-    dualPreviewRow.classList.add('show');
-    document.getElementById('result-video').style.display='none';
-  }else{
-    dualPreviewRow.classList.remove('show');
-    document.getElementById('result-video').style.display='block';
-  }
-  resultFiles.innerHTML='';
-  const rotLabel=rotation===0?'Portrait':rotation===-90||rotation===270?'Landscape←':rotation===90?'Landscape→':'Custom';
-  resultFiles.innerHTML+=`<div class="result-file"><div class="rf-label">↔ Landscape</div><div class="rf-val">${(landBlob.size/1048576).toFixed(1)} MB · ${recSecs}s · ${rotLabel}</div></div>`;
-  if(dualFormat&&portBlob){
-    resultFiles.innerHTML+=`<div class="result-file"><div class="rf-label">↕ Portrait (centre crop)</div><div class="rf-val">${(portBlob.size/1048576).toFixed(1)} MB · ${recSecs}s · No rotation</div></div>`;
-    document.getElementById('btn-share-both').style.display='flex';
-  }else{
-    document.getElementById('btn-share-both').style.display='none';
-  }
-  if(stillUrls.length>0)resultFiles.innerHTML+=`<div class="result-file"><div class="rf-label">📷 Stills</div><div class="rf-val">${stillUrls.length} photo${stillUrls.length>1?'s':''}</div></div>`;
-  convRow.classList.remove('show');
-  document.getElementById('btn-convert').textContent='⚙ MP4';document.getElementById('btn-convert').style.cssText='';
-  document.getElementById('btn-share').textContent='↑ Share';
-  resultArea.classList.add('show');
-}
-
-function backToCamera(){
-  resultArea.classList.remove('show');
-  landBlob=null;portBlob=null;mp4Blob=null;stillUrls=[];landChunks=[];portChunks=[];
-  resultVideo.src='';document.getElementById('result-video').style.display='block';
-  dualPreviewRow.classList.remove('show');
-  showHint('Camera ready — say "Roll"',2000);
-}
-
-// ── MP4 ──
-async function convertToMp4(){
-  convLabel.textContent='Loading converter...';convRow.classList.add('show');convBar.style.width='5%';
-  try{
-    if(!window.FFmpeg)await loadScript('https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js');
-    const{createFFmpeg,fetchFile}=window.FFmpeg;const ff=createFFmpeg({log:false});
-    convLabel.textContent='Converting...';await ff.load();convBar.style.width='20%';
-    ff.FS('writeFile','in.webm',await fetchFile(landBlob));convBar.style.width='35%';
-    ff.setProgress(({ratio})=>{convBar.style.width=Math.round(35+ratio*55)+'%';});
-    await ff.run('-i','in.webm','-c:v','libx264','-preset','ultrafast','-crf','30','-c:a','aac','-b:a','128k','out.mp4');
-    convBar.style.width='100%';
-    const data=ff.FS('readFile','out.mp4');mp4Blob=new Blob([data.buffer],{type:'video/mp4'});
-    convLabel.textContent=`✓ MP4 ${(mp4Blob.size/1048576).toFixed(1)} MB`;
-    resultVideo.src=URL.createObjectURL(mp4Blob);document.getElementById('result-video').style.display='block';dualPreviewRow.classList.remove('show');
-    const btn=document.getElementById('btn-convert');btn.textContent='✓ MP4';btn.style.background='var(--green)';btn.style.color='#000';
-    document.getElementById('btn-share').textContent='↑ Share MP4';
-  }catch(e){convLabel.textContent='MP4 failed — sharing webm';setTimeout(()=>convRow.classList.remove('show'),2500);}
-}
-function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
-
-// ── SHARE ──
-async function doShare(blobs,names){
-  const files=[];
-  for(let i=0;i<blobs.length;i++)files.push(new File([blobs[i]],names[i],{type:blobs[i].type}));
-  for(let i=0;i<stillUrls.length;i++){try{const r=await fetch(stillUrls[i]);const b=await r.blob();files.push(new File([b],`still_${i+1}.jpg`,{type:'image/jpeg'}));}catch(e){}}
-  if(navigator.share&&navigator.canShare&&navigator.canShare({files})){
-    try{await navigator.share({files,title:`OrientCam v${APP_VERSION} © ${OWNER}`});setTimeout(backToCamera,300);return;}
-    catch(e){if(e.name==='AbortError')return;}
-  }
-  blobs.forEach((b,i)=>setTimeout(()=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=names[i];document.body.appendChild(a);a.click();document.body.removeChild(a);},i*500));
-  stillUrls.forEach((url,i)=>setTimeout(()=>{const a=document.createElement('a');a.href=url;a.download=`still_${i+1}.jpg`;document.body.appendChild(a);a.click();document.body.removeChild(a);},(blobs.length+i)*500));
-  setTimeout(backToCamera,1000);
-}
-function shareMain(){sndPing();const blob=mp4Blob||landBlob;const ext=mp4Blob?'mp4':'webm';doShare([blob],[`orientcam_v${APP_VERSION}_landscape.${ext}`]);}
-function shareBoth(){sndPing();const lBlob=mp4Blob||landBlob,ext=mp4Blob?'mp4':'webm';const bl=[lBlob],nm=[`orientcam_v${APP_VERSION}_landscape.${ext}`];if(portBlob){bl.push(portBlob);nm.push(`orientcam_v${APP_VERSION}_portrait.webm`);}doShare(bl,nm);}
-
-// ── SNAP STILL ──
-function snapStill(){
-  if(!stream)return;sndShutter();
-  flashOv.classList.add('flash');setTimeout(()=>flashOv.classList.remove('flash'),150);
-  const vw=preview.videoWidth||1280,vh=preview.videoHeight||720;
-  const absR=Math.abs(((rotation%360)+360)%360);const transposed=absR===90||absR===270;
-  snapCanvas.width=transposed?vh:vw;snapCanvas.height=transposed?vw:vh;
-  const ctx=snapCanvas.getContext('2d');
-  ctx.save();ctx.translate(snapCanvas.width/2,snapCanvas.height/2);ctx.rotate(rotation*Math.PI/180);
-  const mx=(facingMode==='user')?-1:1;ctx.scale(mirrored?-mx:mx,1);
-  ctx.drawImage(preview,-vw/2,-vh/2,vw,vh);ctx.restore();
-  ctx.font='bold 13px -apple-system,sans-serif';ctx.fillStyle='rgba(255,255,255,0.2)';ctx.textAlign='right';ctx.fillText(`OrientCam © ${OWNER}`,snapCanvas.width-8,snapCanvas.height-8);
-  snapCanvas.toBlob(blob=>{if(blob){stillUrls.push(URL.createObjectURL(blob));showHint(`📷 Still #${stillUrls.length}`,800);};},'image/jpeg',0.93);
-}
-
-// ── TOUCH ZONES ──
-document.getElementById('zone-left').addEventListener('pointerdown',e=>{
-  e.stopPropagation();
-  document.getElementById('zone-left').classList.add('zone-flash');
-  setTimeout(()=>document.getElementById('zone-left').classList.remove('zone-flash'),300);
-  if(!isRecording&&!countdownActive)fullRollSequence();
-  else showHint('Already rolling',800);
-});
-document.getElementById('zone-right').addEventListener('pointerdown',e=>{
-  e.stopPropagation();
-  document.getElementById('zone-right').classList.add('zone-flash');
-  setTimeout(()=>document.getElementById('zone-right').classList.remove('zone-flash'),300);
-  snapStill();showHint('📷 Still!',800);
-});
-
-// ── GRID ──
-function toggleGrid(){sndTick();gridOn=!gridOn;gridCanvas.classList.toggle('show',gridOn);if(gridOn)drawGrid();}
-function drawGrid(){
-  gridCanvas.width=window.innerWidth;gridCanvas.height=window.innerHeight;
-  const ctx=gridCanvas.getContext('2d');ctx.clearRect(0,0,gridCanvas.width,gridCanvas.height);
-  ctx.strokeStyle='rgba(255,255,255,0.22)';ctx.lineWidth=0.8;
-  for(let i=1;i<3;i++){
-    ctx.beginPath();ctx.moveTo(gridCanvas.width*i/3,0);ctx.lineTo(gridCanvas.width*i/3,gridCanvas.height);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(0,gridCanvas.height*i/3);ctx.lineTo(gridCanvas.width,gridCanvas.height*i/3);ctx.stroke();
-  }
-}
-
-// ── HINTS ──
-function showHint(msg,dur){hintBadge.textContent=msg;hintBadge.classList.add('show');clearTimeout(hintTimer);hintTimer=setTimeout(()=>hintBadge.classList.remove('show'),dur||2000);}
-
-// ── VOICE ──
-function toggleVoice(){voiceActive?stopVoice():startVoice();}
-function startVoice(){
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){showHint('Voice not supported',2000);return;}
-  document.querySelectorAll('.cmd-chip').forEach(c=>c.classList.remove('used','heard'));
-  recognition=new SR();recognition.continuous=true;recognition.interimResults=true;recognition.lang='en-US';recognition.maxAlternatives=1;
-  recognition.onstart=()=>{voiceActive=true;document.getElementById('mic-btn').classList.add('active');voiceSheet.classList.add('open');sndPing();};
-  recognition.onresult=e=>{
-    for(let i=e.resultIndex;i<e.results.length;i++){
-      const text=e.results[i][0].transcript.toLowerCase().trim();
-      if(text.length<2)continue;
-      const now=Date.now(),cmd=getCmd(text);
-      if(cmd&&cmd===lastCmd&&(now-lastCmdTime)<800)continue;
-      if(cmd){lastCmd=cmd;lastCmdTime=now;handleCmd(cmd);break;}
-    }
-  };
-  recognition.onerror=e=>{if(e.error==='not-allowed'){showHint('Mic denied',2000);stopVoice();}};
-  recognition.onend=()=>{if(voiceActive)recognition.start();};
-  recognition.start();
-}
-function stopVoice(){voiceActive=false;if(recognition){recognition.abort();recognition=null;}document.getElementById('mic-btn').classList.remove('active');voiceSheet.classList.remove('open');sndPop();}
-function getCmd(t){
-  if(t.includes('roll')||t.includes('action')||t.includes('start'))return 'roll';
-  if(t.includes('selfie'))return 'selfie';
-  if(t.includes('stop')||t.includes('cut'))return 'stop';
-  if(t.includes('save')||t.includes('share'))return 'save';
-  if(t.includes('still')||t.includes('snap')||t.includes('photo'))return 'stills';
-  if(t.includes('zoom in')||t.includes('closer'))return 'zoomin';
-  if(t.includes('zoom out')||t.includes('wider'))return 'zoomout';
-  if(t.includes('landscape')||t.includes('wide'))return 'landscape';
-  if(t.includes('portrait')||t.includes('vertical'))return 'portrait';
-  if(t.includes('flip'))return 'flip';
-  if(t.includes('cinema')||t.includes('cinematic')||t.includes('letterbox'))return 'cinema';
-  if(t.includes('front'))return 'front';
-  if(t.includes('back')||t.includes('rear'))return 'back';
-  if(t.includes('grid'))return 'grid';
-  return null;
-}
-function flashChip(id,keep){const c=document.getElementById(id);if(!c)return;c.classList.add('heard');setTimeout(()=>keep?c.classList.remove('heard'):c.classList.add('used'),400);}
-function showHeard(text){heardBadge.textContent='✓ '+text;heardBadge.classList.add('show');clearTimeout(heardTimer);heardTimer=setTimeout(()=>heardBadge.classList.remove('show'),1200);}
-function handleCmd(cmd){
-  const labels={roll:'Roll',selfie:'Selfie',stop:'Stop',save:'Save',stills:'Stills',zoomin:'Zoom In',zoomout:'Zoom Out',landscape:'Landscape',portrait:'Portrait',flip:'Flip',cinema:'Cinema',front:'Front',back:'Back',grid:'Grid'};
-  showHeard(labels[cmd]||cmd);
-  switch(cmd){
-    case 'roll':flashChip('chip-roll',true);if(!isRecording&&!countdownActive)fullRollSequence();break;
-    case 'selfie':flashChip('chip-selfie',true);selfieSequence();break;
-    case 'stop':flashChip('chip-stop',true);if(isRecording)fadeAndStop();break;
-    case 'save':
-      sndPing();flashChip('chip-save',true);
-      if(isRecording)fadeAndStop(()=>{showResult();setTimeout(shareMain,700);});
-      else if(landBlob)shareMain();break;
-    case 'stills':flashChip('chip-stills',true);snapStill();break;
-    case 'zoomin':flashChip('chip-zin',true);zoomStep(0.5);break;
-    case 'zoomout':flashChip('chip-zout',true);zoomStep(-0.5);break;
-    case 'landscape':sndTick();flashChip('chip-land',false);setPreset(-90);showHint('↔ Landscape ←',1000);break;
-    case 'portrait':sndTick();flashChip('chip-port',false);setPreset(0);showHint('↕ Portrait',1000);break;
-    case 'flip':sndTick();flashChip('chip-flip',false);rotation=rotation===0?-90:0;applyTransform();break;
-    case 'cinema':sndTick();flashChip('chip-cinema',false);toggleLetterbox();break;
-    case 'front':sndPop();flashChip('chip-front',true);facingMode='user';if(stream){stream.getTracks().forEach(t=>t.stop());startCamera();}break;
-    case 'back':sndPop();flashChip('chip-back',true);facingMode='environment';if(stream){stream.getTracks().forEach(t=>t.stop());startCamera();}break;
-    case 'grid':sndTick();flashChip('chip-grid',true);toggleGrid();break;
-  }
-}
-
-// ── AUTO-UPDATE ──
-const CURRENT_VERSION='2.1';
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js').then(reg=>{
-    if(reg.waiting)showUpdateBanner(reg.waiting);
-    reg.addEventListener('updatefound',()=>{const nw=reg.installing;nw.addEventListener('statechange',()=>{if(nw.state==='installed'&&navigator.serviceWorker.controller)showUpdateBanner(nw);});});
-  }).catch(()=>{});
-  navigator.serviceWorker.addEventListener('message',e=>{if(e.data&&e.data.type==='SW_UPDATED'&&e.data.version!==CURRENT_VERSION)window.location.reload(true);});
-  let refreshing=false;
-  navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!refreshing){refreshing=true;window.location.reload(true);}});
-}
-async function checkVersion(){try{const res=await fetch('version.json?t='+Date.now(),{cache:'no-store'});if(!res.ok)return;const data=await res.json();if(data.version&&data.version!==CURRENT_VERSION){document.getElementById('upd-sub').textContent=`v${CURRENT_VERSION} → v${data.version} · Tap to update`;document.getElementById('update-banner').classList.add('show');}}catch(e){}}
-setTimeout(checkVersion,3000);setInterval(checkVersion,5*60*1000);
-function showUpdateBanner(sw){const b=document.getElementById('update-banner');document.getElementById('upd-sub').textContent='New version ready — tap to apply';b.classList.add('show');b._waitingSW=sw;}
-function doUpdate(){document.querySelector('.upd-text').textContent='⏳ Updating...';document.querySelector('.upd-btn').textContent='Please wait';const b=document.getElementById('update-banner');if(b._waitingSW){b._waitingSW.postMessage({type:'SKIP_WAITING'});return;}if('caches' in window){caches.keys().then(keys=>{Promise.all(keys.map(k=>caches.delete(k))).then(()=>window.location.reload(true));});}else window.location.reload(true);}
-
-window.addEventListener('resize',()=>{applyTransform();if(gridOn)drawGrid();});
+function retake(){window.backToCamera();}
 </script>
 </body>
 </html>
