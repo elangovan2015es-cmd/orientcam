@@ -1,68 +1,68 @@
-# OrientCam v2.0 — EIL Professional Edition
+# OrientCam v2.1 — EIL Professional Edition
 
-| Item      | Detail                          |
-|-----------|---------------------------------|
-| Version   | 2.0                             |
-| Date      | 10-Apr-2026                     |
-| Owner     | Elango Industries Limited (EIL) |
-| Protected | Yes — domain locked, watermarked|
+| Item    | Detail               |
+|---------|----------------------|
+| Version | 2.1                  |
+| Date    | 10-Apr-2026          |
+| Cache   | orientcam-v2.1-cache |
+| Owner   | EIL — Protected      |
 
-## Files (5)
+## Fixes in v2.1
 
-| File         | Purpose                              |
-|--------------|--------------------------------------|
-| index.html   | Main app                             |
-| manifest.json| PWA install config                   |
-| sw.js        | Service worker + auto-update         |
-| version.json | Version trigger for auto-update      |
-| README.md    | This file                            |
+| Bug | Fix |
+|-----|-----|
+| Dual landscape shows portrait video | Portrait canvas now draws RAW unrotated video — centre crop only — no rotation applied |
+| Selfie video not working | "Selfie" command switches front camera → 3-2-1 → records |
 
-## What's New in v2.0
+## New Features in v2.1
 
-### Bugs Fixed
-- Camera starts in Portrait by default (rotation=0)
-- Landscape uses anti-clockwise rotation (-90°)
-- Dual mode: landscape canvas rotated, portrait canvas centre crop only — no rotation applied to portrait
+### Opening Squares Animation
+- Before every Roll — camera bracket squares animate in from corners
+- Outer + inner bracket corners appear with stagger
+- Hold for 1 second then fade out → countdown begins
 
-### New Features
-- 3-2-1 countdown before recording starts
-- Tap screen anywhere to focus (with focus ring indicator)
-- Cinema letterbox mode (black bars top/bottom)
-- Shot counter (Shot 1, Shot 2...)
-- "Cinema" voice command
+### Selfie with 3-2-1
+- Say "Selfie" → switches to front camera → squares → 3-2-1 → records
+- Front camera mirror correctly handled in both landscape and portrait canvases
 
-### Copy Protection
-- Right-click disabled
-- Long press on video/image blocked
-- Text selection disabled
-- Keyboard save shortcuts blocked (Ctrl+S etc)
-- Domain locked to elangovan2015es-cmd.github.io
-- Subtle watermark burned into all videos and stills: "OrientCam © EIL"
-- DevTools detection alert
+### Fade to Black on Stop/Save
+- When recording stops via voice "Stop" or "Save" → screen fades to black
+- Then result screen appears — cinematic feel
+
+### Swipe Gestures on Viewfinder
+- Swipe left → Landscape (anti-clockwise -90°)
+- Swipe right → Portrait (0°)
+- Swipe up → Zoom In
+- Swipe down (80px+) → Stop + Save + fade
+
+### Dual Mode Result Preview
+- When dual is ON — result shows both videos side by side
+- Landscape preview on left, Portrait preview on right
+- Labels clearly show which is which
 
 ## Voice Commands
 
-| Say         | Action                         | Sound       |
-|-------------|--------------------------------|-------------|
-| "Roll"      | 3-2-1 countdown + record       | Triple beep |
-| "Stop"      | Stop recording                 | Descend     |
-| "Save"      | Stop if recording + Share      | Ping        |
-| "Stills"    | Snap photo                     | Shutter     |
-| "Zoom in"   | Zoom in 0.5x                   | Rise        |
-| "Zoom out"  | Zoom out 0.5x                  | Fall        |
-| "Landscape" | Anti-clockwise wide output     | Tick        |
-| "Portrait"  | Normal upright output          | Tick        |
-| "Flip"      | Toggle between portrait/land   | Tick        |
-| "Cinema"    | Toggle letterbox bars          | Tick        |
-| "Front"     | Front camera                   | Pop         |
-| "Back"      | Back camera                    | Pop         |
-| "Grid"      | Rule of thirds grid            | Tick        |
+| Say        | Action                                  | Sound       |
+|------------|-----------------------------------------|-------------|
+| "Roll"     | Squares → 3-2-1 → Record               | Triple beep |
+| "Selfie"   | Front cam → Squares → 3-2-1 → Record   | Triple beep |
+| "Stop"     | Fade → Stop recording                   | Descend     |
+| "Save"     | Fade → Stop → Share sheet              | Ping        |
+| "Stills"   | Snap photo                              | Shutter     |
+| "Zoom in"  | Zoom in 0.5x                            | Rise        |
+| "Zoom out" | Zoom out 0.5x                           | Fall        |
+| "Landscape"| Anti-clockwise -90° output              | Tick        |
+| "Portrait" | Normal 0° output                        | Tick        |
+| "Flip"     | Toggle landscape/portrait               | Tick        |
+| "Cinema"   | Letterbox bars                          | Tick        |
+| "Front"    | Front camera                            | Pop         |
+| "Back"     | Back camera                             | Pop         |
+| "Grid"     | Rule of thirds grid                     | Tick        |
 
 ## Version History
 
-| Version | Date        | Changes                                              |
-|---------|-------------|------------------------------------------------------|
-| 1.0-1.8 | 09-Apr-2026 | Progressive development                              |
-| 1.9     | 10-Apr-2026 | Auto-return after share, gestures, dual solid        |
-| 1.9p    | 10-Apr-2026 | Auto-update banner system                            |
-| 2.0     | 10-Apr-2026 | Portrait default, anti-CW landscape, dual fix, cinema|
+| Version | Date        | Changes                                                  |
+|---------|-------------|----------------------------------------------------------|
+| 1.0-1.9p| 09-Apr-2026 | Progressive development                                  |
+| 2.0     | 10-Apr-2026 | Portrait default, anti-CW landscape, cinema, protection  |
+| 2.1     | 10-Apr-2026 | Dual fix, selfie, fade, squares, swipe gestures          |
