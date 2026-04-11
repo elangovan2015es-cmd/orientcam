@@ -3,17 +3,17 @@
 <head>
   <!--
     OrientCam — iPhone Edition
-    Version : 1.8
+    Version : 1.9
     Date    : 10-Apr-2026
     Author  : Elango / EIL
-    Changes : v1.8 — Voice only UI, Share Sheet, MP4 via FFmpeg.wasm,
-              Touch zones (edge tap = roll, swipe down = stop/save),
-              Save auto-stops recording, Dual toggle at top,
-              Voice strip at very bottom
+    Changes : v1.9 — After share auto-returns to camera
+              Gesture zones fixed — no conflict with voice sheet
+              Dual mode canvas sync verified
+              Retake resets everything cleanly
   -->
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>OrientCam v1.8</title>
+  <title>OrientCam v1.9</title>
   <meta name="theme-color" content="#0a0a0a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -35,144 +35,112 @@
       --blue: #0a84ff;
     }
     html, body {
-      height: 100%; overflow: hidden; background: var(--bg);
+      height: 100%; overflow: hidden; background: #000;
       font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
-      color: var(--text); -webkit-tap-highlight-color: transparent; touch-action: none;
+      color: var(--text); -webkit-tap-highlight-color: transparent;
     }
-    #app { display: flex; flex-direction: column; height: 100vh; height: -webkit-fill-available; overflow: hidden; }
+    #app { position: fixed; inset: 0; display: flex; flex-direction: column; }
 
-    /* ── TOP BAR ── */
+    /* ── VIEWFINDER — full screen ── */
+    #viewfinder { position: fixed; inset: 0; background: #000; z-index: 1; }
+    #preview { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.4s cubic-bezier(0.4,0,0.2,1); }
+    #grid-canvas { position: absolute; inset: 0; pointer-events: none; z-index: 2; opacity: 0; transition: opacity 0.3s; }
+    #grid-canvas.show { opacity: 1; }
+
+    /* ── TOUCH ZONES — fixed, pointer-events isolated ── */
+    /* Left zone: tall strip on left, above voice sheet */
+    #zone-left {
+      position: fixed;
+      left: 0; top: 15%; width: 52px;
+      bottom: 70px;                   /* stops above voice sheet */
+      z-index: 12;
+      display: flex; align-items: center; justify-content: center;
+      border-right: 1px solid rgba(255,255,255,0.07);
+    }
+    #zone-right {
+      position: fixed;
+      right: 0; top: 15%; width: 52px;
+      bottom: 70px;
+      z-index: 12;
+      display: flex; align-items: center; justify-content: center;
+      border-left: 1px solid rgba(255,255,255,0.07);
+    }
+    .zone-inner {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 4px;
+    }
+    .zone-icon { font-size: 18px; opacity: 0.25; }
+    .zone-text { font-size: 8px; color: rgba(255,255,255,0.2); letter-spacing: 0.5px; writing-mode: vertical-rl; text-orientation: mixed; }
+
+    /* Zone active flash */
+    .zone-flash { background: rgba(255,165,0,0.15) !important; border-radius: 8px; }
+
+    /* ── TOP BAR — floating ── */
     #topbar {
+      position: fixed; top: 0; left: 0; right: 0;
       display: flex; align-items: center; justify-content: space-between;
-      padding: 10px 14px; padding-top: max(env(safe-area-inset-top),10px);
-      background: rgba(0,0,0,0.75);
-      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-      border-bottom: 0.5px solid rgba(255,255,255,0.08);
-      flex-shrink: 0; z-index: 20; position: absolute; top: 0; left: 0; right: 0;
+      padding: 10px 14px;
+      padding-top: max(env(safe-area-inset-top),10px);
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border-bottom: 0.5px solid rgba(255,255,255,0.07);
+      z-index: 20;
     }
-    .brand-name { font-size: 16px; font-weight: 700; color: var(--orange); letter-spacing: -0.5px; display: flex; align-items: baseline; gap: 5px; }
-    .brand-ver { font-size: 9px; color: var(--orange); opacity: 0.6; }
-
-    /* Dual toggle */
-    .dual-btn { display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.08); border: 0.5px solid rgba(255,255,255,0.15); border-radius: 10px; padding: 5px 10px; cursor: pointer; transition: all 0.2s; }
+    .brand-name { font-size: 15px; font-weight: 700; color: var(--orange); display: flex; align-items: baseline; gap: 5px; }
+    .brand-ver { font-size: 9px; color: var(--orange); opacity: 0.55; }
+    .dual-btn { display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.08); border: 0.5px solid rgba(255,255,255,0.14); border-radius: 10px; padding: 5px 10px; cursor: pointer; transition: all 0.2s; }
     .dual-btn.active { border-color: var(--orange); background: var(--orange-dim); }
     .dual-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); transition: background 0.2s; }
     .dual-btn.active .dual-dot { background: var(--orange); }
     .dual-label { font-size: 11px; font-weight: 500; color: var(--muted); }
     .dual-btn.active .dual-label { color: var(--orange); }
-
-    /* Mic button */
-    #mic-btn {
-      width: 36px; height: 36px; border-radius: 50%;
-      border: 0.5px solid rgba(255,255,255,0.15);
-      background: rgba(255,255,255,0.08);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 16px; cursor: pointer; transition: all 0.2s;
-    }
+    #mic-btn { width: 36px; height: 36px; border-radius: 50%; border: 0.5px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; transition: all 0.2s; }
     #mic-btn.active { border-color: var(--green); background: rgba(48,209,88,0.2); animation: vring 1.5s ease-in-out infinite; }
     @keyframes vring { 0%,100%{box-shadow:0 0 0 0 rgba(48,209,88,0.4)} 50%{box-shadow:0 0 0 8px rgba(48,209,88,0)} }
 
-    /* ── VIEWFINDER — full screen ── */
-    #viewfinder {
-      position: fixed; inset: 0;
-      background: #000; overflow: hidden;
-      display: flex; align-items: center; justify-content: center;
-    }
-    #preview { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.4s cubic-bezier(0.4,0,0.2,1); }
-    #grid-canvas { position: absolute; inset: 0; pointer-events: none; z-index: 2; opacity: 0; transition: opacity 0.3s; }
-    #grid-canvas.show { opacity: 1; }
-
-    /* ── TOUCH ZONES — edges, invisible, never in frame ── */
-    #zone-left {
-      position: absolute; left: 0; top: 20%; width: 44px; height: 60%;
-      z-index: 15; cursor: pointer;
-      /* Visible hint only when camera active */
-      border-right: 1px solid rgba(255,255,255,0.06);
-    }
-    #zone-right {
-      position: absolute; right: 0; top: 20%; width: 44px; height: 60%;
-      z-index: 15; cursor: pointer;
-      border-left: 1px solid rgba(255,255,255,0.06);
-    }
-    .zone-label {
-      position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(90deg);
-      font-size: 8px; color: rgba(255,255,255,0.2); letter-spacing: 0.5px;
-      white-space: nowrap; pointer-events: none;
-    }
-    #zone-left .zone-label { transform: translate(-50%,-50%) rotate(90deg); }
-    #zone-right .zone-label { transform: translate(-50%,-50%) rotate(-90deg); }
-
-    /* ── BADGES — overlaid on viewfinder ── */
+    /* ── OVERLAID BADGES ── */
     #orient-badge {
-      position: absolute; top: max(env(safe-area-inset-top),10px);
-      margin-top: 46px;
+      position: fixed; z-index: 10;
+      top: max(env(safe-area-inset-top),10px); margin-top: 48px;
       left: 50%; transform: translateX(-50%);
       background: rgba(255,165,0,0.85); color: #000;
       font-size: 11px; font-weight: 600; padding: 4px 14px;
-      border-radius: 20px; white-space: nowrap; z-index: 5;
+      border-radius: 20px; white-space: nowrap;
     }
     #rec-badge {
-      position: absolute; top: max(env(safe-area-inset-top),10px);
-      margin-top: 46px; right: 14px;
+      position: fixed; z-index: 10;
+      top: max(env(safe-area-inset-top),10px); margin-top: 48px;
+      right: 14px;
       display: none; align-items: center; gap: 6px;
-      background: rgba(255,59,48,0.92); padding: 4px 12px;
-      border-radius: 20px; z-index: 5;
+      background: rgba(255,59,48,0.92); padding: 4px 12px; border-radius: 20px;
     }
     #rec-badge.show { display: flex; }
     .rec-dot { width: 7px; height: 7px; border-radius: 50%; background: #fff; animation: rblink 1s infinite; }
     @keyframes rblink { 0%,100%{opacity:1} 50%{opacity:0.2} }
     #rec-time { color: #fff; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
 
-    #zoom-badge {
-      position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-      background: rgba(0,0,0,0.6); color: #fff;
-      font-size: 18px; font-weight: 700; padding: 8px 20px;
-      border-radius: 20px; z-index: 5; opacity: 0;
-      transition: opacity 0.3s; pointer-events: none;
-    }
+    #zoom-badge { position: fixed; z-index: 10; top: 50%; left: 50%; transform: translate(-50%,-50%); background: rgba(0,0,0,0.65); color: #fff; font-size: 20px; font-weight: 700; padding: 10px 22px; border-radius: 20px; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
     #zoom-badge.show { opacity: 1; }
-
-    #heard-badge {
-      position: absolute; top: max(env(safe-area-inset-top),10px);
-      margin-top: 80px;
-      left: 50%; transform: translateX(-50%);
-      background: rgba(48,209,88,0.92); color: #000;
-      font-size: 12px; font-weight: 700; padding: 4px 16px;
-      border-radius: 20px; white-space: nowrap; z-index: 6;
-      opacity: 0; pointer-events: none; transition: opacity 0.15s;
-    }
+    #heard-badge { position: fixed; z-index: 10; top: max(env(safe-area-inset-top),10px); margin-top: 84px; left: 50%; transform: translateX(-50%); background: rgba(48,209,88,0.92); color: #000; font-size: 12px; font-weight: 700; padding: 4px 16px; border-radius: 20px; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.15s; }
     #heard-badge.show { opacity: 1; }
-
-    #gesture-hint {
-      position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-      background: rgba(0,0,0,0.7); color: rgba(255,255,255,0.9);
-      font-size: 13px; font-weight: 500; padding: 10px 18px;
-      border-radius: 16px; text-align: center; z-index: 5;
-      line-height: 1.7; opacity: 0; transition: opacity 0.3s; pointer-events: none;
-    }
-    #gesture-hint.show { opacity: 1; }
-
-    #flash-overlay { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 7; transition: opacity 0.08s; }
+    #hint-badge { position: fixed; z-index: 10; top: 50%; left: 50%; transform: translate(-50%,-50%); background: rgba(0,0,0,0.72); color: rgba(255,255,255,0.9); font-size: 13px; padding: 10px 18px; border-radius: 16px; text-align: center; line-height: 1.7; opacity: 0; transition: opacity 0.3s; pointer-events: none; white-space: pre-line; }
+    #hint-badge.show { opacity: 1; }
+    #flash-overlay { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 8; transition: opacity 0.08s; }
     #flash-overlay.flash { opacity: 0.85; }
-
-    #dual-indicator {
-      position: absolute; bottom: 90px; right: 14px;
-      display: none; flex-direction: column; gap: 4px; z-index: 5;
-    }
+    #dual-indicator { position: fixed; z-index: 10; bottom: 80px; right: 14px; display: none; flex-direction: column; gap: 4px; }
     #dual-indicator.show { display: flex; }
     .fmt-badge { font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 8px; }
     .fmt-land { background: rgba(255,165,0,0.85); color: #000; }
     .fmt-port { background: rgba(10,132,255,0.85); color: #fff; }
 
-    /* ── VOICE SHEET — transparent, bottom ── */
+    /* ── VOICE SHEET — bottom strip ── */
     #voice-sheet {
-      position: absolute; bottom: 0; left: 0; right: 0;
-      background: rgba(0,0,0,0.12);
-      backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
-      border-top: 0.5px solid rgba(255,255,255,0.1);
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 15;
+      background: rgba(0,0,0,0.14);
+      backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+      border-top: 0.5px solid rgba(255,255,255,0.09);
       padding: 7px 10px 10px;
       padding-bottom: max(env(safe-area-inset-bottom),10px);
-      z-index: 10;
       transform: translateY(100%);
       transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
     }
@@ -181,47 +149,48 @@
     .v-mic-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: mpulse 0.8s ease-in-out infinite; }
     @keyframes mpulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
     .v-label { font-size: 10px; font-weight: 600; color: var(--green); flex: 1; }
-    .v-stop { background: rgba(255,255,255,0.08); border: 0.5px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.5); font-size: 10px; padding: 3px 8px; border-radius: 8px; cursor: pointer; }
-    .chip-row { display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; }
+    .v-stop-btn { background: rgba(255,255,255,0.08); border: 0.5px solid rgba(255,255,255,0.14); color: rgba(255,255,255,0.5); font-size: 10px; padding: 3px 8px; border-radius: 8px; cursor: pointer; }
+    .chip-row { display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; padding-bottom: 1px; }
     .chip-row::-webkit-scrollbar { display: none; }
     .chip-sep { width: 0.5px; background: rgba(255,255,255,0.12); margin: 0 2px; flex-shrink: 0; }
-    .cmd-chip { flex-shrink: 0; background: rgba(255,255,255,0.09); border: 0.5px solid rgba(255,255,255,0.18); border-radius: 14px; padding: 4px 10px; transition: all 0.3s; overflow: hidden; max-width: 160px; }
-    .chip-word { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.85); white-space: nowrap; }
+    .cmd-chip { flex-shrink: 0; background: rgba(255,255,255,0.09); border: 0.5px solid rgba(255,255,255,0.17); border-radius: 14px; padding: 4px 10px; transition: all 0.3s; overflow: hidden; max-width: 160px; }
+    .chip-word { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.82); white-space: nowrap; }
     .cmd-chip.heard { background: rgba(48,209,88,0.28); border-color: rgba(48,209,88,0.65); }
     .cmd-chip.heard .chip-word { color: var(--green); }
     .cmd-chip.used { opacity: 0; max-width: 0; padding: 0; border-width: 0; pointer-events: none; }
 
     /* ── RESULT OVERLAY ── */
     #result-area {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,0.95); z-index: 30;
-      flex-direction: column; align-items: center;
-      justify-content: center; gap: 12px; padding: 20px;
+      position: fixed; inset: 0; z-index: 25;
+      background: rgba(0,0,0,0.96);
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 12px; padding: 20px;
+      padding-top: max(env(safe-area-inset-top),20px);
+      padding-bottom: max(env(safe-area-inset-bottom),20px);
     }
     #result-area.show { display: flex; }
     .result-title { color: var(--orange); font-size: 15px; font-weight: 700; }
-    #result-video { width: 100%; max-height: 40vh; border-radius: 10px; }
-    .result-files { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-    .result-file { background: var(--surface2); border: 0.5px solid var(--border); border-radius: 10px; padding: 8px 12px; min-width: 110px; }
+    #result-video { width: 100%; max-height: 38vh; border-radius: 10px; background: #111; }
+    .result-files { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; width: 100%; }
+    .result-file { background: var(--surface2); border: 0.5px solid var(--border); border-radius: 10px; padding: 8px 12px; min-width: 100px; text-align: center; }
     .rf-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
     .rf-val { font-size: 12px; font-weight: 600; }
-    /* Action buttons */
     .result-actions { display: flex; gap: 8px; width: 100%; flex-wrap: wrap; }
-    .r-btn { flex: 1; padding: 13px 8px; border-radius: 14px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; min-width: 80px; text-align: center; }
+    .r-btn { flex: 1; padding: 13px 8px; border-radius: 14px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; min-width: 80px; }
     .r-btn:active { opacity: 0.75; }
     .btn-share { background: var(--green); color: #000; }
     .btn-share-both { background: var(--blue); color: #fff; }
     .btn-convert { background: var(--orange); color: #000; }
-    .btn-retake { background: var(--surface2); color: var(--text); border: 0.5px solid var(--border); }
-    /* Progress */
-    #convert-progress { width: 100%; display: none; flex-direction: column; gap: 6px; align-items: center; }
-    #convert-progress.show { display: flex; }
+    .btn-back { background: var(--surface2); color: var(--text); border: 0.5px solid var(--border); }
+    #convert-row { width: 100%; display: none; flex-direction: column; gap: 6px; align-items: center; }
+    #convert-row.show { display: flex; }
     .conv-label { font-size: 12px; color: var(--muted); }
     .conv-bar-wrap { width: 100%; height: 4px; background: var(--surface2); border-radius: 2px; overflow: hidden; }
     .conv-bar { height: 100%; background: var(--orange); width: 0%; transition: width 0.3s; border-radius: 2px; }
 
     /* PERMISSION */
-    #perm-screen { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: #000; z-index: 40; padding: 40px 28px; text-align: center; }
+    #perm-screen { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: #000; padding: 40px 28px; text-align: center; }
     .perm-icon { width: 80px; height: 80px; background: var(--surface2); border-radius: 22px; border: 0.5px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 40px; }
     .perm-title { font-size: 22px; font-weight: 700; }
     .perm-ver { font-size: 12px; color: var(--orange); opacity: 0.7; }
@@ -230,142 +199,168 @@
     .perm-note .hi { color: var(--green); }
     .perm-note strong { color: var(--orange); }
     #perm-btn { background: var(--orange); color: #000; border: none; padding: 14px 40px; border-radius: 30px; font-size: 16px; font-weight: 700; cursor: pointer; }
+
+    /* ── AUTO-UPDATE BANNER ── */
+    #update-banner {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: var(--green); color: #000;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px;
+      padding-top: max(env(safe-area-inset-top), 10px);
+      transform: translateY(-100%);
+      transition: transform 0.4s cubic-bezier(0.4,0,0.2,1);
+      cursor: pointer;
+    }
+    #update-banner.show { transform: translateY(0); }
+    .upd-text { font-size: 13px; font-weight: 600; }
+    .upd-sub { font-size: 10px; opacity: 0.75; }
+    .upd-btn {
+      background: #000; color: var(--green);
+      border: none; border-radius: 10px;
+      padding: 6px 14px; font-size: 12px; font-weight: 700;
+      cursor: pointer; white-space: nowrap;
+    }
   </style>
 </head>
 <body>
+
+<!-- AUTO-UPDATE BANNER — appears when new version is available -->
+<div id="update-banner" onclick="doUpdate()">
+  <div>
+    <div class="upd-text">🎉 New version available!</div>
+    <div class="upd-sub" id="upd-sub">Tap to update now — takes 3 seconds</div>
+  </div>
+  <button class="upd-btn">Update ↑</button>
+</div>
 
 <canvas id="rec-canvas" style="display:none"></canvas>
 <canvas id="port-canvas" style="display:none"></canvas>
 <canvas id="snap-canvas" style="display:none"></canvas>
 
-<div id="app">
+<!-- VIEWFINDER -->
+<div id="viewfinder">
+  <video id="preview" autoplay muted playsinline webkit-playsinline></video>
+  <canvas id="grid-canvas"></canvas>
+</div>
 
-  <!-- FULL SCREEN VIEWFINDER -->
-  <div id="viewfinder">
-    <video id="preview" autoplay muted playsinline webkit-playsinline></video>
-    <canvas id="grid-canvas"></canvas>
-
-    <!-- TOUCH ZONES — left edge = Roll, right edge = Still -->
-    <div id="zone-left" ontouchstart="onZoneLeft()">
-      <span class="zone-label">ROLL</span>
-    </div>
-    <div id="zone-right" ontouchstart="onZoneRight()">
-      <span class="zone-label">STILL</span>
-    </div>
-
-    <!-- BADGES -->
-    <div id="orient-badge">Landscape output</div>
-    <div id="rec-badge"><div class="rec-dot"></div><span id="rec-time">00:00</span></div>
-    <div id="zoom-badge">1.0x</div>
-    <div id="heard-badge"></div>
-    <div id="gesture-hint"></div>
-    <div id="flash-overlay"></div>
-    <div id="dual-indicator">
-      <div class="fmt-badge fmt-land">↔ Land</div>
-      <div class="fmt-badge fmt-port">↕ Port</div>
-    </div>
-
-    <!-- VOICE SHEET — bottom transparent strip -->
-    <div id="voice-sheet">
-      <div class="voice-row">
-        <div class="v-mic-dot"></div>
-        <span class="v-label">🎙 Listening — say a command</span>
-        <button class="v-stop" onclick="stopVoice()">Off</button>
-      </div>
-      <div class="chip-row">
-        <div class="cmd-chip" id="chip-roll"><span class="chip-word">🎬 Roll</span></div>
-        <div class="cmd-chip" id="chip-stop"><span class="chip-word">⏹ Stop</span></div>
-        <div class="cmd-chip" id="chip-save"><span class="chip-word">💾 Save</span></div>
-        <div class="cmd-chip" id="chip-stills"><span class="chip-word">📷 Stills</span></div>
-        <div class="chip-sep"></div>
-        <div class="cmd-chip" id="chip-zin"><span class="chip-word">🔍+ Zoom In</span></div>
-        <div class="cmd-chip" id="chip-zout"><span class="chip-word">🔍− Zoom Out</span></div>
-        <div class="chip-sep"></div>
-        <div class="cmd-chip" id="chip-land"><span class="chip-word">↔ Landscape</span></div>
-        <div class="cmd-chip" id="chip-port"><span class="chip-word">↕ Portrait</span></div>
-        <div class="cmd-chip" id="chip-flip"><span class="chip-word">🔃 Flip</span></div>
-        <div class="chip-sep"></div>
-        <div class="cmd-chip" id="chip-front"><span class="chip-word">🤳 Front</span></div>
-        <div class="cmd-chip" id="chip-back"><span class="chip-word">📸 Back</span></div>
-        <div class="cmd-chip" id="chip-grid"><span class="chip-word">⊞ Grid</span></div>
-      </div>
-    </div>
-
-    <!-- PERMISSION -->
-    <div id="perm-screen">
-      <div class="perm-icon">🎬</div>
-      <div class="perm-title">OrientCam</div>
-      <div class="perm-ver">v1.8 — Voice Edition</div>
-      <p class="perm-sub">Fully voice controlled. Hold portrait. Shoot landscape.</p>
-      <div class="perm-note">
-        <span class="hi">✦ "Roll"</span> — start · <span class="hi">"Stop"</span> — stop<br>
-        <span class="hi">✦ "Save"</span> — auto-stops + shares<br>
-        <span class="hi">✦ "Stills"</span> — snap while recording<br>
-        <span class="hi">✦ "Zoom in/out"</span> — zoom control<br>
-        <strong>Touch:</strong> Left edge = Roll · Right edge = Still<br>
-        <strong>Swipe down</strong> = Stop + Save
-      </div>
-      <button id="perm-btn" onclick="startCamera()">Enable Camera</button>
-    </div>
-
-    <!-- RESULT OVERLAY -->
-    <div id="result-area">
-      <div class="result-title">🎬 Ready to Share</div>
-      <video id="result-video" controls playsinline webkit-playsinline></video>
-      <div class="result-files" id="result-files"></div>
-      <div id="convert-progress">
-        <div class="conv-label" id="conv-label">Converting to MP4...</div>
-        <div class="conv-bar-wrap"><div class="conv-bar" id="conv-bar"></div></div>
-      </div>
-      <div class="result-actions" id="result-actions">
-        <button class="r-btn btn-retake" onclick="retake()">↩ Retake</button>
-        <button class="r-btn btn-convert" id="btn-convert" onclick="convertToMp4()">⚙ To MP4</button>
-        <button class="r-btn btn-share" id="btn-share" onclick="shareMain()">↑ Share</button>
-        <button class="r-btn btn-share-both" id="btn-share-both" onclick="shareBoth()" style="display:none">↑ Both</button>
-      </div>
-    </div>
+<!-- TOUCH ZONES — separate from viewfinder, no conflict -->
+<div id="zone-left">
+  <div class="zone-inner">
+    <div class="zone-icon">🎬</div>
+    <div class="zone-text">ROLL</div>
   </div>
-
-  <!-- TOP BAR — floating -->
-  <div id="topbar">
-    <div class="brand-name">OrientCam <span class="brand-ver">v1.8</span></div>
-    <div class="dual-btn" id="btn-dual" onclick="toggleDual()">
-      <div class="dual-dot"></div>
-      <span class="dual-label">Dual Off</span>
-    </div>
-    <div id="mic-btn" onclick="toggleVoice()">🎙</div>
+</div>
+<div id="zone-right">
+  <div class="zone-inner">
+    <div class="zone-icon">📷</div>
+    <div class="zone-text">STILL</div>
   </div>
+</div>
 
+<!-- TOP BAR -->
+<div id="topbar">
+  <div class="brand-name">OrientCam <span class="brand-ver">v1.9</span></div>
+  <div class="dual-btn" id="btn-dual" onclick="toggleDual()">
+    <div class="dual-dot"></div>
+    <span class="dual-label">Dual Off</span>
+  </div>
+  <div id="mic-btn" onclick="toggleVoice()">🎙</div>
+</div>
+
+<!-- BADGES -->
+<div id="orient-badge">↔ Landscape output</div>
+<div id="rec-badge"><div class="rec-dot"></div><span id="rec-time">00:00</span></div>
+<div id="zoom-badge">1.0x</div>
+<div id="heard-badge"></div>
+<div id="hint-badge"></div>
+<div id="flash-overlay"></div>
+<div id="dual-indicator">
+  <div class="fmt-badge fmt-land">↔ Land</div>
+  <div class="fmt-badge fmt-port">↕ Port</div>
+</div>
+
+<!-- VOICE SHEET -->
+<div id="voice-sheet">
+  <div class="voice-row">
+    <div class="v-mic-dot"></div>
+    <span class="v-label">🎙 Listening</span>
+    <button class="v-stop-btn" onclick="stopVoice()">Off</button>
+  </div>
+  <div class="chip-row">
+    <div class="cmd-chip" id="chip-roll"><span class="chip-word">🎬 Roll</span></div>
+    <div class="cmd-chip" id="chip-stop"><span class="chip-word">⏹ Stop</span></div>
+    <div class="cmd-chip" id="chip-save"><span class="chip-word">💾 Save</span></div>
+    <div class="cmd-chip" id="chip-stills"><span class="chip-word">📷 Stills</span></div>
+    <div class="chip-sep"></div>
+    <div class="cmd-chip" id="chip-zin"><span class="chip-word">🔍+ Zoom In</span></div>
+    <div class="cmd-chip" id="chip-zout"><span class="chip-word">🔍− Zoom Out</span></div>
+    <div class="chip-sep"></div>
+    <div class="cmd-chip" id="chip-land"><span class="chip-word">↔ Landscape</span></div>
+    <div class="cmd-chip" id="chip-port"><span class="chip-word">↕ Portrait</span></div>
+    <div class="cmd-chip" id="chip-flip"><span class="chip-word">🔃 Flip</span></div>
+    <div class="chip-sep"></div>
+    <div class="cmd-chip" id="chip-front"><span class="chip-word">🤳 Front</span></div>
+    <div class="cmd-chip" id="chip-back"><span class="chip-word">📸 Back</span></div>
+    <div class="cmd-chip" id="chip-grid"><span class="chip-word">⊞ Grid</span></div>
+  </div>
+</div>
+
+<!-- RESULT OVERLAY -->
+<div id="result-area">
+  <div class="result-title">🎬 Ready to Share</div>
+  <video id="result-video" controls playsinline webkit-playsinline></video>
+  <div class="result-files" id="result-files"></div>
+  <div id="convert-row">
+    <div class="conv-label" id="conv-label">Converting...</div>
+    <div class="conv-bar-wrap"><div class="conv-bar" id="conv-bar"></div></div>
+  </div>
+  <div class="result-actions">
+    <button class="r-btn btn-back" onclick="backToCamera()">← Camera</button>
+    <button class="r-btn btn-convert" id="btn-convert" onclick="convertToMp4()">⚙ MP4</button>
+    <button class="r-btn btn-share" id="btn-share" onclick="shareMain()">↑ Share</button>
+    <button class="r-btn btn-share-both" id="btn-share-both" onclick="shareBoth()" style="display:none">↑ Both</button>
+  </div>
+</div>
+
+<!-- PERMISSION -->
+<div id="perm-screen">
+  <div class="perm-icon">🎬</div>
+  <div class="perm-title">OrientCam</div>
+  <div class="perm-ver">v1.9 — Voice Edition</div>
+  <p class="perm-sub">Fully voice controlled. Hold portrait. Shoot landscape.</p>
+  <div class="perm-note">
+    <span class="hi">✦ "Roll"</span> — start · <span class="hi">"Stop"</span> — stop<br>
+    <span class="hi">✦ "Save"</span> — stop + share sheet opens<br>
+    <span class="hi">✦ "Stills"</span> — snap photo while recording<br>
+    <span class="hi">✦ "Zoom in/out"</span> — zoom<br>
+    <strong>Left edge tap</strong> = Roll · <strong>Right edge</strong> = Still<br>
+    <strong>Swipe down</strong> on screen = Stop + Share<br>
+    After sharing → camera returns automatically
+  </div>
+  <button id="perm-btn" onclick="startCamera()">Enable Camera</button>
 </div>
 
 <script>
-// OrientCam v1.8 — 10-Apr-2026
-// Voice only, Share Sheet, MP4 conversion, Touch zones, Save auto-stops
-const APP_VERSION = '1.8';
-const FPS = 24;
-const FRAME_MS = 1000 / FPS;
-const BITRATE = 2500000;
-const CHUNK_MS = 1000;
+// OrientCam v1.9 — 10-Apr-2026
+// Fix: auto-return to camera after share, gesture zones fixed, dual mode solid
+const APP_VERSION = '1.9';
+const FPS = 24, FRAME_MS = 1000/24, BITRATE = 2500000, CHUNK_MS = 1000;
 
-let stream=null, rotation=90;
-let facingMode='environment', mirrored=false, gridOn=false;
-let dualFormat=false;
+let stream=null, rotation=90, facingMode='environment';
+let mirrored=false, gridOn=false, dualFormat=false;
 let currentZoom=1.0, maxZoom=4.0, minZoom=1.0;
-let zoomTimer=null;
+let zoomTimer=null, hintTimer=null, heardTimer=null;
 
 // Recording
 let landRecorder=null, portRecorder=null;
 let landChunks=[], portChunks=[];
-let isRecording=false;
-let drawInterval=null;
+let isRecording=false, drawInterval=null;
 let recTimerId=null, recSecs=0;
 let landBlob=null, portBlob=null, mp4Blob=null;
-let stillUrls=[];
-let pendingStops=0;
+let stillUrls=[], pendingStops=0;
 
 // Voice
 let voiceActive=false, recognition=null;
-let heardTimer=null, hintTimer=null;
 let lastCmd='', lastCmdTime=0;
 
 // Audio
@@ -385,7 +380,7 @@ const recBadge    = document.getElementById('rec-badge');
 const recTimeEl   = document.getElementById('rec-time');
 const zoomBadge   = document.getElementById('zoom-badge');
 const heardBadge  = document.getElementById('heard-badge');
-const gestureHint = document.getElementById('gesture-hint');
+const hintBadge   = document.getElementById('hint-badge');
 const flashOv     = document.getElementById('flash-overlay');
 const dualInd     = document.getElementById('dual-indicator');
 const voiceSheet  = document.getElementById('voice-sheet');
@@ -393,7 +388,7 @@ const resultArea  = document.getElementById('result-area');
 const resultVideo = document.getElementById('result-video');
 const resultFiles = document.getElementById('result-files');
 const permScreen  = document.getElementById('perm-screen');
-const convProgress= document.getElementById('convert-progress');
+const convRow     = document.getElementById('convert-row');
 const convBar     = document.getElementById('conv-bar');
 const convLabel   = document.getElementById('conv-label');
 
@@ -403,18 +398,18 @@ function getAudio(){
   if(audioCtx.state==='suspended') audioCtx.resume();
   return audioCtx;
 }
-function tone(freq1,freq2,dur,vol,type='sine'){
+function tone(f1,f2,dur,vol,type='sine'){
   try{
     const ctx=getAudio(),t=ctx.currentTime;
     const o=ctx.createOscillator(),g=ctx.createGain();
-    o.type=type; o.frequency.setValueAtTime(freq1,t);
-    if(freq2!==freq1) o.frequency.exponentialRampToValueAtTime(freq2,t+dur);
+    o.type=type; o.frequency.setValueAtTime(f1,t);
+    if(f2!==f1) o.frequency.exponentialRampToValueAtTime(f2,t+dur);
     g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur+0.02);
     o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+dur+0.03);
   }catch(e){}
 }
-function sndRoll(){try{[0,0.13,0.26].forEach((d,i)=>{setTimeout(()=>tone(440+i*220,440+i*220,0.09,0.4),d*1000);});}catch(e){}}
-function sndStop(){tone(660,220,0.3,0.45);}
+function sndRoll(){ [0,0.13,0.26].forEach((d,i)=>setTimeout(()=>tone(440+i*220,440+i*220,0.09,0.4),d*1000)); }
+function sndStop(){ tone(660,220,0.3,0.45); }
 function sndShutter(){
   try{
     const ctx=getAudio(),t=ctx.currentTime;
@@ -427,89 +422,100 @@ function sndShutter(){
     src.connect(f); f.connect(g); g.connect(ctx.destination); src.start(t); src.stop(t+0.05);
   }catch(e){}
 }
-function sndPing(){tone(1000,1000,0.09,0.22);}
-function sndTick(){tone(1200,1200,0.05,0.18,'triangle');}
-function sndPop(){tone(600,200,0.09,0.28);}
-function sndZoom(dir){tone(dir>0?400:800,dir>0?800:400,0.12,0.18);}
+function sndPing(){ tone(1000,1000,0.09,0.22); }
+function sndTick(){ tone(1200,1200,0.05,0.18,'triangle'); }
+function sndPop(){  tone(600,200,0.09,0.28); }
+function sndZoom(dir){ tone(dir>0?400:800,dir>0?800:400,0.12,0.18); }
 
 // ── CAMERA ──
 async function startCamera(){
   try{
     if(stream) stream.getTracks().forEach(t=>t.stop());
     stream=await navigator.mediaDevices.getUserMedia({
-      video:{facingMode,width:{ideal:1920},height:{ideal:1080}},audio:true
+      video:{facingMode,width:{ideal:1920},height:{ideal:1080}},
+      audio:true
     });
     preview.srcObject=stream; await preview.play();
     permScreen.style.display='none';
     applyTransform(); drawGrid(); getAudio();
-    const vt=stream.getVideoTracks()[0];
-    if(vt){const c=vt.getCapabilities&&vt.getCapabilities();if(c&&c.zoom){minZoom=c.zoom.min||1;maxZoom=c.zoom.max||4;}}
-    showHint('Say "Roll" to start · Left edge tap = Roll · Right edge = Still · Swipe down = Stop+Save',3000);
-  }catch(e){alert('Camera error: '+e.message);}
+    try{
+      const vt=stream.getVideoTracks()[0];
+      const c=vt.getCapabilities&&vt.getCapabilities();
+      if(c&&c.zoom){minZoom=c.zoom.min||1;maxZoom=c.zoom.max||4;}
+    }catch(e){}
+    showHint('Say "Roll" to start\nLeft edge = Roll · Right edge = Still\nSwipe down = Stop+Save',3500);
+  }catch(e){showHint('Camera error: '+e.message,4000);}
 }
 
 function applyTransform(){
-  const wrap=document.getElementById('viewfinder');
-  const ww=wrap.clientWidth||375, wh=wrap.clientHeight||812;
+  const vw=document.getElementById('viewfinder').clientWidth||375;
+  const vh=document.getElementById('viewfinder').clientHeight||812;
   const absR=Math.abs(((rotation%360)+360)%360);
   const transposed=absR===90||absR===270;
-  const scale=transposed?Math.min(ww/wh,wh/ww)*0.95:1;
+  const scale=transposed?Math.min(vw/vh,vh/vw)*0.95:1;
   preview.style.transform=`scaleX(${mirrored?-1:1}) rotate(${rotation}deg) scale(${scale*currentZoom})`;
   updateBadge();
 }
 
 function updateBadge(){
   const n=((rotation%360)+360)%360;
-  let label;
-  if(n===0)        label='Normal output';
-  else if(n===90)  label='↔ Landscape output';
-  else if(n===270) label='↔ Landscape ↩ output';
-  else if(n===180) label='↕ Flipped output';
-  else             label=`${rotation}° output`;
-  orientBadge.textContent=label;
+  if(n===0)        orientBadge.textContent='↕ Normal output';
+  else if(n===90)  orientBadge.textContent='↔ Landscape output';
+  else if(n===270) orientBadge.textContent='↔ Landscape ↩ output';
+  else if(n===180) orientBadge.textContent='↕ Flipped output';
+  else             orientBadge.textContent=`${rotation}° output`;
 }
 
-function onRotate(val){rotation=parseInt(val);applyTransform();}
-function setPreset(deg){rotation=deg;applyTransform();}
+function setPreset(deg){ rotation=deg; applyTransform(); }
 
-// ── TOUCH ZONES ──
-function onZoneLeft(){
-  // Left edge = Roll (start recording)
+// ── TOUCH ZONES — isolated from viewfinder events ──
+// Use pointer events directly on zone elements
+document.getElementById('zone-left').addEventListener('pointerdown', e=>{
+  e.stopPropagation();
+  flashZone('zone-left');
   if(!isRecording){ sndRoll(); startRecording(); showHint('🎬 Rolling!',1200); }
-  else { showHint('Already rolling',800); }
-}
-function onZoneRight(){
-  // Right edge = Still snap
-  snapStill(); showHint('📷 Still!',800);
+  else showHint('Already rolling — say "Stop"',1200);
+});
+
+document.getElementById('zone-right').addEventListener('pointerdown', e=>{
+  e.stopPropagation();
+  flashZone('zone-right');
+  snapStill(); showHint('📷 Still captured!',900);
+});
+
+function flashZone(id){
+  const z=document.getElementById(id);
+  z.classList.add('zone-flash');
+  setTimeout(()=>z.classList.remove('zone-flash'),300);
 }
 
-// Swipe down anywhere = Stop + Save
+// Swipe down on viewfinder = Stop + Save
 let touchStartY=0;
 document.getElementById('viewfinder').addEventListener('touchstart',e=>{
   if(e.touches.length===1) touchStartY=e.touches[0].clientY;
-  // Pinch zoom
-  if(e.touches.length===2) pinchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+  if(e.touches.length===2) pinchStart(e);
 },{passive:true});
 document.getElementById('viewfinder').addEventListener('touchend',e=>{
   if(e.changedTouches.length===1){
-    const dy=e.changedTouches[0].clientY-touchStartY;
-    if(dy>80&&isRecording){
-      // Swipe down = stop + save
-      showHint('⏹ Stop & Save',1200);
-      stopAndSave();
+    const dy=e.changedTouches[0].clientY - touchStartY;
+    if(dy>90){ // swipe down threshold
+      showHint('⏹ Stopping + Sharing...',1500);
+      stopThenShare();
     }
   }
 },{passive:true});
-
-// Pinch zoom
-let pinchDist=0;
 document.getElementById('viewfinder').addEventListener('touchmove',e=>{
-  if(e.touches.length===2){
-    const nd=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
-    const delta=(nd-pinchDist)*0.008;
-    if(Math.abs(delta)>0.04){currentZoom=Math.round(Math.min(maxZoom,Math.max(minZoom,currentZoom+delta))*10)/10;applyZoomNow();pinchDist=nd;}
-  }
+  if(e.touches.length===2) pinchMove(e);
 },{passive:true});
+
+// ── PINCH ZOOM ──
+let pinchDist0=0;
+function pinchStart(e){ pinchDist0=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); }
+function pinchMove(e){
+  const nd=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+  const delta=(nd-pinchDist0)*0.008;
+  if(Math.abs(delta)>0.04){ currentZoom=Math.round(Math.min(maxZoom,Math.max(minZoom,currentZoom+delta))*10)/10; applyZoomNow(); pinchDist0=nd; }
+}
 
 // ── ZOOM ──
 function zoomStep(delta){
@@ -517,10 +523,7 @@ function zoomStep(delta){
   applyZoomNow(); sndZoom(delta);
 }
 function applyZoomNow(){
-  try{
-    const vt=stream&&stream.getVideoTracks()[0];
-    if(vt&&vt.getCapabilities&&vt.getCapabilities().zoom) vt.applyConstraints({advanced:[{zoom:currentZoom}]});
-  }catch(e){}
+  try{ const vt=stream&&stream.getVideoTracks()[0]; if(vt&&vt.getCapabilities&&vt.getCapabilities().zoom) vt.applyConstraints({advanced:[{zoom:currentZoom}]}); }catch(e){}
   applyTransform();
   zoomBadge.textContent=currentZoom.toFixed(1)+'x';
   zoomBadge.classList.add('show');
@@ -530,68 +533,74 @@ function applyZoomNow(){
 
 // ── DUAL ──
 function toggleDual(){
-  if(isRecording){showHint('Cannot change during recording',1500);return;}
+  if(isRecording){ showHint('Stop recording first',1500); return; }
   dualFormat=!dualFormat;
   const btn=document.getElementById('btn-dual');
   btn.classList.toggle('active',dualFormat);
   btn.querySelector('.dual-label').textContent=dualFormat?'Dual On':'Dual Off';
   dualInd.classList.toggle('show',dualFormat);
   sndTick();
+  showHint(dualFormat?'Dual format ON\nSaves landscape + portrait':'Dual format OFF\nSaves landscape only',2000);
 }
 
 // ── RECORDING ──
 function startRecording(){
-  if(!stream||isRecording)return;
-  landChunks=[]; portChunks=[]; stillUrls=[]; pendingStops=0;
-  mp4Blob=null;
+  if(!stream||isRecording) return;
+  landChunks=[]; portChunks=[]; stillUrls=[]; pendingStops=0; mp4Blob=null;
 
   const vw=preview.videoWidth||1280, vh=preview.videoHeight||720;
   const absR=Math.abs(((rotation%360)+360)%360);
   const transposed=absR===90||absR===270;
 
-  recCanvas.width=transposed?vh:vw;
-  recCanvas.height=transposed?vw:vh;
+  // Landscape canvas
+  recCanvas.width  = transposed?vh:vw;
+  recCanvas.height = transposed?vw:vh;
   recCtx=recCanvas.getContext('2d');
 
+  // Portrait canvas — only if dual
   if(dualFormat){
-    portCanvas.width=Math.round(vh*0.5625);
-    portCanvas.height=vh;
+    portCanvas.width  = Math.round(vh*9/16);
+    portCanvas.height = vh;
     portCtx=portCanvas.getContext('2d');
   }
 
-  // 24fps setInterval — stable on iOS Safari
+  // 24fps setInterval — iOS Safari stable
   drawInterval=setInterval(()=>{
-    if(!preview.videoWidth)return;
+    if(!preview.videoWidth) return;
+    // Landscape frame — rotated
     recCtx.save();
     recCtx.clearRect(0,0,recCanvas.width,recCanvas.height);
     recCtx.translate(recCanvas.width/2,recCanvas.height/2);
     recCtx.rotate(rotation*Math.PI/180);
-    if(mirrored)recCtx.scale(-1,1);
+    if(mirrored) recCtx.scale(-1,1);
     recCtx.drawImage(preview,-vw/2,-vh/2,vw,vh);
     recCtx.restore();
+    // Portrait frame — centre crop, no rotation
     if(dualFormat&&portCtx){
       const cx=Math.round((vw-portCanvas.width)/2);
+      portCtx.clearRect(0,0,portCanvas.width,portCanvas.height);
       portCtx.drawImage(preview,cx,0,portCanvas.width,vh,0,0,portCanvas.width,vh);
     }
   },FRAME_MS);
 
-  const mime=MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')?'video/webm;codecs=vp8,opus':
-             MediaRecorder.isTypeSupported('video/webm')?'video/webm':'video/mp4';
-
+  const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') ? 'video/webm;codecs=vp8,opus'
+             : MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4';
   const audioTrack=stream.getAudioTracks()[0];
 
+  // Landscape recorder
   const lStream=recCanvas.captureStream(FPS);
-  if(audioTrack)lStream.addTrack(audioTrack);
+  if(audioTrack) lStream.addTrack(audioTrack);
   landRecorder=new MediaRecorder(lStream,{mimeType:mime,videoBitsPerSecond:BITRATE});
-  landRecorder.ondataavailable=e=>{if(e.data&&e.data.size>0)landChunks.push(e.data);};
+  landRecorder.ondataavailable=e=>{if(e.data&&e.data.size>0) landChunks.push(e.data);};
   landRecorder.start(CHUNK_MS);
   pendingStops++;
 
+  // Portrait recorder
   if(dualFormat){
     const pStream=portCanvas.captureStream(FPS);
-    if(audioTrack)pStream.addTrack(audioTrack.clone());
+    if(audioTrack) pStream.addTrack(audioTrack.clone());
     portRecorder=new MediaRecorder(pStream,{mimeType:mime,videoBitsPerSecond:Math.round(BITRATE*0.6)});
-    portRecorder.ondataavailable=e=>{if(e.data&&e.data.size>0)portChunks.push(e.data);};
+    portRecorder.ondataavailable=e=>{if(e.data&&e.data.size>0) portChunks.push(e.data);};
     portRecorder.start(CHUNK_MS);
     pendingStops++;
   }
@@ -606,31 +615,31 @@ function startRecording(){
 }
 
 function stopRecording(cb){
-  if(!isRecording)return;
+  if(!isRecording) return;
   sndStop();
   clearInterval(drawInterval); drawInterval=null;
   clearInterval(recTimerId);
   isRecording=false;
   recBadge.classList.remove('show');
 
-  function checkDone(){
+  function onDone(){
     pendingStops--;
-    if(pendingStops<=0){
-      landBlob=new Blob(landChunks,{type:landChunks[0]?.type||'video/webm'});
-      if(dualFormat&&portChunks.length>0) portBlob=new Blob(portChunks,{type:portChunks[0]?.type||'video/webm'});
-      if(cb)cb(); else showResult();
-    }
+    if(pendingStops>0) return;
+    landBlob=new Blob(landChunks,{type:landChunks[0]?.type||'video/webm'});
+    if(dualFormat&&portChunks.length>0) portBlob=new Blob(portChunks,{type:portChunks[0]?.type||'video/webm'});
+    else portBlob=null;
+    if(cb) cb(); else showResult();
   }
 
-  landRecorder.onstop=checkDone; landRecorder.stop();
+  landRecorder.onstop=onDone; landRecorder.stop();
   if(dualFormat&&portRecorder&&portRecorder.state!=='inactive'){
-    portRecorder.onstop=checkDone; portRecorder.stop();
+    portRecorder.onstop=onDone; portRecorder.stop();
   }
 }
 
-// Save command auto-stops recording first
-function stopAndSave(){
-  if(isRecording){ stopRecording(()=>showResult()); }
+// Stop then immediately open share
+function stopThenShare(){
+  if(isRecording){ stopRecording(()=>{ showResult(); setTimeout(shareMain,600); }); }
   else if(landBlob){ shareMain(); }
 }
 
@@ -646,138 +655,111 @@ function showResult(){
     document.getElementById('btn-share-both').style.display='none';
   }
   if(stillUrls.length>0){
-    resultFiles.innerHTML+=`<div class="result-file"><div class="rf-label">📷 Stills</div><div class="rf-val">${stillUrls.length} photos</div></div>`;
+    resultFiles.innerHTML+=`<div class="result-file"><div class="rf-label">📷 Stills</div><div class="rf-val">${stillUrls.length} photo${stillUrls.length>1?'s':''}</div></div>`;
   }
-  convProgress.classList.remove('show');
+  convRow.classList.remove('show');
+  document.getElementById('btn-convert').textContent='⚙ MP4';
+  document.getElementById('btn-convert').style.cssText='';
+  document.getElementById('btn-share').textContent='↑ Share';
   resultArea.classList.add('show');
 }
 
-// ── MP4 CONVERSION via FFmpeg.wasm ──
+// ── BACK TO CAMERA — key fix ──
+function backToCamera(){
+  resultArea.classList.remove('show');
+  // Reset all blobs and stills
+  landBlob=null; portBlob=null; mp4Blob=null; stillUrls=[];
+  landChunks=[]; portChunks=[];
+  resultVideo.src='';
+  // Camera is still live — just show it
+  showHint('Camera ready — say "Roll" to shoot again',2500);
+}
+
+// ── MP4 CONVERSION ──
 async function convertToMp4(){
-  // Load FFmpeg.wasm on demand
-  if(!window.FFmpeg){
-    convLabel.textContent='Loading converter...';
-    convProgress.classList.add('show');
-    convBar.style.width='10%';
-    try{
-      await loadScript('https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js');
-    }catch(e){
-      convLabel.textContent='Converter load failed — sharing webm';
-      setTimeout(()=>convProgress.classList.remove('show'),2000);
-      return;
-    }
-  }
-  const {createFFmpeg,fetchFile}=window.FFmpeg;
-  const ff=createFFmpeg({log:false});
-  convLabel.textContent='Converting to MP4...';
-  convProgress.classList.add('show');
-  convBar.style.width='5%';
+  convLabel.textContent='Loading converter...';
+  convRow.classList.add('show'); convBar.style.width='5%';
   try{
-    await ff.load();
-    convBar.style.width='20%';
-    ff.FS('writeFile','input.webm',await fetchFile(landBlob));
-    convBar.style.width='40%';
-    ff.setProgress(({ratio})=>{ convBar.style.width=Math.round(40+ratio*50)+'%'; });
-    await ff.run('-i','input.webm','-c:v','libx264','-preset','fast','-crf','28','-c:a','aac','-b:a','128k','output.mp4');
-    convBar.style.width='95%';
-    const data=ff.FS('readFile','output.mp4');
-    mp4Blob=new Blob([data.buffer],{type:'video/mp4'});
+    if(!window.FFmpeg) await loadScript('https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js');
+    const {createFFmpeg,fetchFile}=window.FFmpeg;
+    const ff=createFFmpeg({log:false});
+    convLabel.textContent='Starting conversion...';
+    await ff.load(); convBar.style.width='20%';
+    ff.FS('writeFile','in.webm',await fetchFile(landBlob));
+    convBar.style.width='35%';
+    ff.setProgress(({ratio})=>{ convBar.style.width=Math.round(35+ratio*55)+'%'; });
+    await ff.run('-i','in.webm','-c:v','libx264','-preset','ultrafast','-crf','30','-c:a','aac','-b:a','128k','out.mp4');
     convBar.style.width='100%';
-    convLabel.textContent=`MP4 ready — ${(mp4Blob.size/1048576).toFixed(1)} MB`;
-    // Update preview
+    const data=ff.FS('readFile','out.mp4');
+    mp4Blob=new Blob([data.buffer],{type:'video/mp4'});
+    convLabel.textContent=`✓ MP4 ready — ${(mp4Blob.size/1048576).toFixed(1)} MB`;
     resultVideo.src=URL.createObjectURL(mp4Blob);
-    document.getElementById('btn-convert').textContent='✓ MP4 Ready';
-    document.getElementById('btn-convert').style.background='var(--green)';
-    document.getElementById('btn-convert').style.color='#000';
+    const btn=document.getElementById('btn-convert');
+    btn.textContent='✓ MP4'; btn.style.background='var(--green)'; btn.style.color='#000';
     document.getElementById('btn-share').textContent='↑ Share MP4';
   }catch(e){
-    convLabel.textContent='Conversion failed — sharing webm instead';
-    setTimeout(()=>convProgress.classList.remove('show'),2500);
+    convLabel.textContent='MP4 failed — sharing webm';
+    setTimeout(()=>convRow.classList.remove('show'),2500);
   }
 }
 
-function loadScript(src){
-  return new Promise((res,rej)=>{
-    const s=document.createElement('script'); s.src=src;
-    s.onload=res; s.onerror=rej; document.head.appendChild(s);
-  });
-}
+function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=rej; document.head.appendChild(s); }); }
 
-// ── SHARE SHEET ──
-async function shareBlobs(blobs,names){
+// ── SHARE — auto-returns to camera after done ──
+async function doShare(blobs,names){
   const files=[];
-  for(let i=0;i<blobs.length;i++){
-    files.push(new File([blobs[i]],names[i],{type:blobs[i].type}));
-  }
-  // Also add stills
+  for(let i=0;i<blobs.length;i++) files.push(new File([blobs[i]],names[i],{type:blobs[i].type}));
+  // Add stills
   for(let i=0;i<stillUrls.length;i++){
-    const r=await fetch(stillUrls[i]);
-    const b=await r.blob();
-    files.push(new File([b],`still_${i+1}.jpg`,{type:'image/jpeg'}));
+    try{ const r=await fetch(stillUrls[i]); const b=await r.blob(); files.push(new File([b],`still_${i+1}.jpg`,{type:'image/jpeg'})); }catch(e){}
   }
+  // Try Web Share API first (opens native share sheet on iOS)
   if(navigator.share&&navigator.canShare&&navigator.canShare({files})){
-    try{ await navigator.share({files,title:'OrientCam Recording'}); return; }catch(e){}
+    try{
+      await navigator.share({files,title:'OrientCam v'+APP_VERSION});
+      // ── KEY FIX: return to camera after share completes ──
+      setTimeout(backToCamera, 300);
+      return;
+    }catch(e){
+      // User cancelled share — stay on result screen
+      if(e.name==='AbortError') return;
+    }
   }
-  // Fallback — download
-  blobs.forEach((b,i)=>{
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(b); a.download=names[i];
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  });
-  stillUrls.forEach((url,i)=>{
-    setTimeout(()=>{
-      const a=document.createElement('a');
-      a.href=url; a.download=`orientcam_still_${i+1}.jpg`;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    },(i+1)*400);
-  });
+  // Fallback: download files
+  blobs.forEach((b,i)=>{ setTimeout(()=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=names[i]; document.body.appendChild(a); a.click(); document.body.removeChild(a); },i*500); });
+  stillUrls.forEach((url,i)=>{ setTimeout(()=>{ const a=document.createElement('a'); a.href=url; a.download=`still_${i+1}.jpg`; document.body.appendChild(a); a.click(); document.body.removeChild(a); },(blobs.length+i)*500); });
+  setTimeout(backToCamera,1000);
 }
 
 function shareMain(){
   sndPing();
   const blob=mp4Blob||landBlob;
   const ext=mp4Blob?'mp4':'webm';
-  shareBlobs([blob],[`orientcam_v${APP_VERSION}_landscape.${ext}`]);
+  doShare([blob],[`orientcam_v${APP_VERSION}_landscape.${ext}`]);
 }
 
 function shareBoth(){
   sndPing();
-  const lBlob=mp4Blob||landBlob;
-  const ext=mp4Blob?'mp4':'webm';
-  const blobList=[lBlob];
-  const nameList=[`orientcam_v${APP_VERSION}_landscape.${ext}`];
-  if(portBlob){blobList.push(portBlob);nameList.push(`orientcam_v${APP_VERSION}_portrait.${ext}`);}
-  shareBlobs(blobList,nameList);
-}
-
-function retake(){
-  resultArea.classList.remove('show');
-  resultVideo.src=''; landBlob=null; portBlob=null; mp4Blob=null; stillUrls=[];
-  document.getElementById('btn-convert').textContent='⚙ To MP4';
-  document.getElementById('btn-convert').style.background='var(--orange)';
-  document.getElementById('btn-convert').style.color='#000';
-  document.getElementById('btn-share').textContent='↑ Share';
+  const lBlob=mp4Blob||landBlob, ext=mp4Blob?'mp4':'webm';
+  const bl=[lBlob], nm=[`orientcam_v${APP_VERSION}_landscape.${ext}`];
+  if(portBlob){ bl.push(portBlob); nm.push(`orientcam_v${APP_VERSION}_portrait.webm`); }
+  doShare(bl,nm);
 }
 
 // ── SNAP STILL ──
 function snapStill(){
-  if(!stream)return;
+  if(!stream) return;
   sndShutter();
-  flashOv.classList.add('flash');
-  setTimeout(()=>flashOv.classList.remove('flash'),150);
-  const vw=preview.videoWidth||1280,vh=preview.videoHeight||720;
+  flashOv.classList.add('flash'); setTimeout(()=>flashOv.classList.remove('flash'),150);
+  const vw=preview.videoWidth||1280, vh=preview.videoHeight||720;
   const absR=Math.abs(((rotation%360)+360)%360);
   const transposed=absR===90||absR===270;
   snapCanvas.width=transposed?vh:vw; snapCanvas.height=transposed?vw:vh;
   const ctx=snapCanvas.getContext('2d');
   ctx.save(); ctx.translate(snapCanvas.width/2,snapCanvas.height/2);
-  ctx.rotate(rotation*Math.PI/180); if(mirrored)ctx.scale(-1,1);
+  ctx.rotate(rotation*Math.PI/180); if(mirrored) ctx.scale(-1,1);
   ctx.drawImage(preview,-vw/2,-vh/2,vw,vh); ctx.restore();
-  snapCanvas.toBlob(blob=>{
-    if(!blob)return;
-    stillUrls.push(URL.createObjectURL(blob));
-    showHint(`📷 Still #${stillUrls.length}`,800);
-  },'image/jpeg',0.93);
+  snapCanvas.toBlob(blob=>{ if(blob){ stillUrls.push(URL.createObjectURL(blob)); showHint(`📷 Still #${stillUrls.length}`,800); } },'image/jpeg',0.93);
 }
 
 // ── GRID ──
@@ -787,60 +769,49 @@ function toggleGrid(){
   if(gridOn) drawGrid();
 }
 function drawGrid(){
-  const wrap=document.getElementById('viewfinder');
-  gridCanvas.width=wrap.clientWidth; gridCanvas.height=wrap.clientHeight;
+  gridCanvas.width=window.innerWidth; gridCanvas.height=window.innerHeight;
   const ctx=gridCanvas.getContext('2d');
   ctx.clearRect(0,0,gridCanvas.width,gridCanvas.height);
-  ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=0.8;
+  ctx.strokeStyle='rgba(255,255,255,0.22)'; ctx.lineWidth=0.8;
   for(let i=1;i<3;i++){
-    ctx.beginPath();ctx.moveTo(gridCanvas.width*i/3,0);ctx.lineTo(gridCanvas.width*i/3,gridCanvas.height);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(0,gridCanvas.height*i/3);ctx.lineTo(gridCanvas.width,gridCanvas.height*i/3);ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(gridCanvas.width*i/3,0); ctx.lineTo(gridCanvas.width*i/3,gridCanvas.height); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,gridCanvas.height*i/3); ctx.lineTo(gridCanvas.width,gridCanvas.height*i/3); ctx.stroke();
   }
 }
 
-// ── GESTURE HINT ──
-function showHint(msg,duration){
-  gestureHint.textContent=msg; gestureHint.classList.add('show');
-  clearTimeout(hintTimer);
-  hintTimer=setTimeout(()=>gestureHint.classList.remove('show'),duration||2000);
+// ── HINTS ──
+function showHint(msg,dur){
+  hintBadge.textContent=msg; hintBadge.classList.add('show');
+  clearTimeout(hintTimer); hintTimer=setTimeout(()=>hintBadge.classList.remove('show'),dur||2000);
 }
 
 // ── VOICE ──
 function toggleVoice(){ voiceActive?stopVoice():startVoice(); }
-
 function startVoice(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){showHint('Voice not supported on this browser',2000);return;}
+  if(!SR){ showHint('Voice not supported',2000); return; }
   document.querySelectorAll('.cmd-chip').forEach(c=>c.classList.remove('used','heard'));
   recognition=new SR();
-  recognition.continuous=true; recognition.interimResults=true;
-  recognition.lang='en-US'; recognition.maxAlternatives=1;
-  recognition.onstart=()=>{
-    voiceActive=true;
-    document.getElementById('mic-btn').classList.add('active');
-    voiceSheet.classList.add('open');
-    sndPing();
-  };
+  recognition.continuous=true; recognition.interimResults=true; recognition.lang='en-US'; recognition.maxAlternatives=1;
+  recognition.onstart=()=>{ voiceActive=true; document.getElementById('mic-btn').classList.add('active'); voiceSheet.classList.add('open'); sndPing(); };
   recognition.onresult=e=>{
     for(let i=e.resultIndex;i<e.results.length;i++){
       const text=e.results[i][0].transcript.toLowerCase().trim();
-      if(text.length<2)continue;
-      const now=Date.now(); const cmd=getCmd(text);
-      if(cmd&&cmd===lastCmd&&(now-lastCmdTime)<800)continue;
-      if(cmd){lastCmd=cmd;lastCmdTime=now;handleCmd(cmd);break;}
+      if(text.length<2) continue;
+      const now=Date.now(), cmd=getCmd(text);
+      if(cmd&&cmd===lastCmd&&(now-lastCmdTime)<800) continue;
+      if(cmd){ lastCmd=cmd; lastCmdTime=now; handleCmd(cmd); break; }
     }
   };
-  recognition.onerror=e=>{if(e.error==='not-allowed'){showHint('Mic denied',2000);stopVoice();}};
-  recognition.onend=()=>{if(voiceActive)recognition.start();};
+  recognition.onerror=e=>{ if(e.error==='not-allowed'){ showHint('Mic denied',2000); stopVoice(); } };
+  recognition.onend=()=>{ if(voiceActive) recognition.start(); };
   recognition.start();
 }
-
 function stopVoice(){
-  voiceActive=false; if(recognition){recognition.abort();recognition=null;}
+  voiceActive=false; if(recognition){ recognition.abort(); recognition=null; }
   document.getElementById('mic-btn').classList.remove('active');
   voiceSheet.classList.remove('open'); sndPop();
 }
-
 function getCmd(t){
   if(t.includes('roll')||t.includes('action')||t.includes('start')) return 'roll';
   if(t.includes('stop')||t.includes('cut'))                         return 'stop';
@@ -848,81 +819,164 @@ function getCmd(t){
   if(t.includes('still')||t.includes('snap')||t.includes('photo'))  return 'stills';
   if(t.includes('zoom in')||t.includes('closer'))                   return 'zoomin';
   if(t.includes('zoom out')||t.includes('wider'))                   return 'zoomout';
-  if(t.includes('landscape')||t.includes('wide shot'))              return 'landscape';
+  if(t.includes('landscape')||t.includes('wide'))                   return 'landscape';
   if(t.includes('portrait')||t.includes('vertical'))                return 'portrait';
-  if(t.includes('flip')||t.includes('rotate'))                      return 'flip';
+  if(t.includes('flip'))                                            return 'flip';
   if(t.includes('front')||t.includes('selfie'))                     return 'front';
   if(t.includes('back')||t.includes('rear'))                        return 'back';
   if(t.includes('grid'))                                            return 'grid';
   return null;
 }
-
 function flashChip(id,keep){
-  const c=document.getElementById(id); if(!c)return;
+  const c=document.getElementById(id); if(!c) return;
   c.classList.add('heard');
   setTimeout(()=>keep?c.classList.remove('heard'):c.classList.add('used'),400);
 }
-
 function showHeard(text){
   heardBadge.textContent='✓ '+text; heardBadge.classList.add('show');
-  clearTimeout(heardTimer);
-  heardTimer=setTimeout(()=>heardBadge.classList.remove('show'),1200);
+  clearTimeout(heardTimer); heardTimer=setTimeout(()=>heardBadge.classList.remove('show'),1200);
 }
-
 function handleCmd(cmd){
-  const labels={'roll':'Roll','stop':'Stop','save':'Save','stills':'Stills','zoomin':'Zoom In','zoomout':'Zoom Out','landscape':'Landscape','portrait':'Portrait','flip':'Flip','front':'Front','back':'Back','grid':'Grid'};
+  const labels={roll:'Roll',stop:'Stop',save:'Save',stills:'Stills',zoomin:'Zoom In',zoomout:'Zoom Out',landscape:'Landscape',portrait:'Portrait',flip:'Flip',front:'Front',back:'Back',grid:'Grid'};
   showHeard(labels[cmd]||cmd);
-
   switch(cmd){
     case 'roll':
       sndRoll(); flashChip('chip-roll',true);
       if(!isRecording) startRecording(); break;
-
     case 'stop':
       flashChip('chip-stop',true);
       if(isRecording) stopRecording(); break;
-
     case 'save':
-      // Save auto-stops recording first then shares
+      // Auto-stops recording then shares, then returns to camera
       sndPing(); flashChip('chip-save',true);
-      if(isRecording){ stopRecording(()=>{ showResult(); setTimeout(shareMain,800); }); }
+      if(isRecording){ stopRecording(()=>{ showResult(); setTimeout(shareMain,700); }); }
       else if(landBlob){ shareMain(); }
       break;
-
     case 'stills':
       flashChip('chip-stills',true); snapStill(); break;
-
     case 'zoomin':
       flashChip('chip-zin',true); zoomStep(0.5); break;
-
     case 'zoomout':
       flashChip('chip-zout',true); zoomStep(-0.5); break;
-
     case 'landscape':
       sndTick(); flashChip('chip-land',false); setPreset(90); break;
-
     case 'portrait':
       sndTick(); flashChip('chip-port',false); setPreset(0); break;
-
     case 'flip':
       sndTick(); flashChip('chip-flip',false);
-      rotation=rotation===90?-90:90; applyTransform(); break;
-
+      rotation=rotation===90?-90:(rotation===-90?90:90); applyTransform(); break;
     case 'front':
       sndPop(); flashChip('chip-front',true);
       facingMode='user'; if(stream){stream.getTracks().forEach(t=>t.stop());startCamera();} break;
-
     case 'back':
       sndPop(); flashChip('chip-back',true);
       facingMode='environment'; if(stream){stream.getTracks().forEach(t=>t.stop());startCamera();} break;
-
     case 'grid':
       sndTick(); flashChip('chip-grid',true); toggleGrid(); break;
   }
 }
 
-window.addEventListener('resize',()=>{applyTransform();if(gridOn)drawGrid();});
-if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}
+window.addEventListener('resize',()=>{ applyTransform(); if(gridOn) drawGrid(); });
+
+// ════════════════════════════════════════════════════
+// AUTO-UPDATE SYSTEM — no manual deletion ever again
+// ════════════════════════════════════════════════════
+const CURRENT_VERSION = '1.9';
+
+// Step 1: Register service worker and watch for updates
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').then(reg => {
+
+    // Check for waiting SW on load (update was already downloaded)
+    if(reg.waiting){
+      showUpdateBanner(reg.waiting);
+    }
+
+    // New SW found and installing
+    reg.addEventListener('updatefound', () => {
+      const newSW = reg.installing;
+      newSW.addEventListener('statechange', () => {
+        if(newSW.state === 'installed' && navigator.serviceWorker.controller){
+          // New version is ready — show banner
+          showUpdateBanner(newSW);
+        }
+      });
+    });
+
+  }).catch(e => console.log('SW reg error:', e));
+
+  // Step 2: Listen for SW telling us it just activated (new version took over)
+  navigator.serviceWorker.addEventListener('message', e => {
+    if(e.data && e.data.type === 'SW_UPDATED'){
+      const newVer = e.data.version;
+      if(newVer !== CURRENT_VERSION){
+        // Different version just activated — reload to get new code
+        window.location.reload(true);
+      }
+    }
+  });
+
+  // Step 3: When controller changes (new SW took over), reload
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if(!refreshing){
+      refreshing = true;
+      window.location.reload(true);
+    }
+  });
+}
+
+// Step 4: Check version via fetch — compares against live version.json
+// This catches updates even when SW hasn't changed
+async function checkVersion(){
+  try{
+    const res = await fetch('version.json?t='+Date.now(), {cache:'no-store'});
+    if(!res.ok) return;
+    const data = await res.json();
+    if(data.version && data.version !== CURRENT_VERSION){
+      document.getElementById('upd-sub').textContent =
+        `v${CURRENT_VERSION} → v${data.version} · Tap to update`;
+      document.getElementById('update-banner').classList.add('show');
+    }
+  }catch(e){} // Offline — skip silently
+}
+// Check version 3 seconds after app opens
+setTimeout(checkVersion, 3000);
+// Check again every 5 minutes while app is open
+setInterval(checkVersion, 5 * 60 * 1000);
+
+// Show update banner with waiting SW reference
+function showUpdateBanner(waitingSW){
+  const banner = document.getElementById('update-banner');
+  document.getElementById('upd-sub').textContent = 'New version ready — tap to apply now';
+  banner.classList.add('show');
+  banner.dataset.hasSW = '1';
+  banner._waitingSW = waitingSW;
+}
+
+// Apply update — clears cache and reloads
+function doUpdate(){
+  const banner = document.getElementById('update-banner');
+  document.querySelector('.upd-text').textContent = '⏳ Updating...';
+  document.querySelector('.upd-btn').textContent = 'Please wait';
+
+  // If we have a waiting SW, tell it to skip waiting
+  if(banner._waitingSW){
+    banner._waitingSW.postMessage({type:'SKIP_WAITING'});
+    return; // controllerchange listener will reload
+  }
+
+  // Otherwise force clear all caches and hard reload
+  if('caches' in window){
+    caches.keys().then(keys => {
+      Promise.all(keys.map(k => caches.delete(k))).then(() => {
+        window.location.reload(true);
+      });
+    });
+  } else {
+    window.location.reload(true);
+  }
+}
 </script>
 </body>
 </html>
